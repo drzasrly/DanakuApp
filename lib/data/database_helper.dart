@@ -124,8 +124,11 @@ class DatabaseHelper {
 
   Future<List<Transaksi>> fetchTransaksi() async {
     final db = await database;
-    final result = await db.query('transaksi', orderBy: 'id ASC');
+    // Urutkan berdasarkan tanggal terbaru langsung dari query
+    final result = await db.query('transaksi', orderBy: 'tanggal DESC');
+
     return result.map((json) => Transaksi(
+      id: json['id'] as int?,
       keterangan: json['keterangan'] as String,
       jumlah: json['jumlah'] as int,
       jenis: json['jenis'] as String,

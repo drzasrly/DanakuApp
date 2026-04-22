@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../data/database_helper.dart';
 import '../services/export_service.dart';
 import '../data/app_data.dart';
+import '../widgets/transaksi_item.dart';
+import 'add_transaksi_page.dart';
 
 class TransaksiPage extends StatefulWidget {
   const TransaksiPage({super.key});
@@ -15,6 +16,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
   List<Transaksi> allTransaksi = [];
   List<Transaksi> filteredTransaksi = [];
   TextEditingController searchController = TextEditingController();
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -22,26 +24,41 @@ class _TransaksiPageState extends State<TransaksiPage> {
     _loadAllData();
   }
 
-  void _loadAllData() async {
+  // Fungsi utama untuk sinkronisasi dengan Database
+  Future<void> _loadAllData() async {
+    setState(() => isLoading = true);
+
+    // Mengambil data langsung dari SQLite agar akurat
     final data = await DatabaseHelper.instance.fetchTransaksi();
-    setState(() {
-      // Urutkan dari yang terbaru (tanggal terbaru di atas)
-      allTransaksi = data.reversed.toList();
-      filteredTransaksi = allTransaksi;
-    });
+
+    if (mounted) {
+      setState(() {
+        // Data diurutkan dari yang terbaru (descending)
+        allTransaksi = data.reversed.toList();
+        filteredTransaksi = allTransaksi;
+
+        // Sinkronisasi ke AppData (Variabel Global)
+        AppData.transaksi = data;
+        isLoading = false;
+      });
+    }
   }
 
+  // Fungsi pencarian tetap sinkron dengan list utama
   void _filterSearch(String query) {
     setState(() {
-      filteredTransaksi = allTransaksi
-          .where((t) => t.keterangan.toLowerCase().contains(query.toLowerCase()))
-          .toList();
+      if (query.isEmpty) {
+        filteredTransaksi = allTransaksi;
+      } else {
+        filteredTransaksi = allTransaksi
+            .where((t) => t.keterangan.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
     });
   }
 
   void _handleExport() async {
     try {
-      // Tampilkan Loading
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -51,7 +68,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
       String filePath = await ExportService.exportTransaksiToCSV();
 
       if (mounted) {
-        Navigator.pop(context); // Tutup Loading
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text("Berhasil ekspor ke: $filePath"),
@@ -62,7 +79,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Tutup Loading
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Gagal melakukan ekspor"),
@@ -80,8 +97,11 @@ class _TransaksiPageState extends State<TransaksiPage> {
       backgroundColor: const Color(0xFFF4F7F6),
       appBar: AppBar(
         title: const Text(
-            "Semua Transaksi",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18)
+          "Semua Transaksi",
+          style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 18),
         ),
         backgroundColor: Colors.white,
         elevation: 0.5,
@@ -94,7 +114,6 @@ class _TransaksiPageState extends State<TransaksiPage> {
           ),
           const SizedBox(width: 8),
         ],
-        // --- SEARCH BAR DI BAGIAN BOTTOM APPBAR ---
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(70),
           child: Padding(
@@ -126,75 +145,62 @@ class _TransaksiPageState extends State<TransaksiPage> {
           ),
         ),
       ),
-      body: filteredTransaksi.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.receipt_long_outlined, size: 60, color: Colors.grey[300]),
-            const SizedBox(height: 10),
-            const Text("Tidak ada riwayat transaksi", style: TextStyle(color: Colors.grey)),
-          ],
-        ),
-      )
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : filteredTransaksi.isEmpty
+          ? _buildEmptyState()
           : RefreshIndicator(
-        onRefresh: () async => _loadAllData(),
+        onRefresh: _loadAllData,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: filteredTransaksi.length,
           itemBuilder: (context, index) {
             final t = filteredTransaksi[index];
-            return Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-                side: BorderSide(color: Colors.grey.withOpacity(0.1)),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                leading: CircleAvatar(
-                  backgroundColor: t.jenis == "masuk" || t.jenis == "Pemasukan"
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.red.withOpacity(0.1),
-                  child: Icon(
-                    t.jenis == "masuk" || t.jenis == "Pemasukan"
-                        ? Icons.arrow_downward_rounded
-                        : Icons.arrow_upward_rounded,
-                    color: t.jenis == "masuk" || t.jenis == "Pemasukan" ? Colors.green : Colors.red,
-                    size: 20,
-                  ),
-                ),
-                title: Text(
-                    t.keterangan,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)
-                ),
-                subtitle: Text(
-                  "${DateFormat('dd MMM yyyy').format(t.tanggal)} • ${t.walletNama}",
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      "Rp ${NumberFormat.decimalPattern('id').format(t.jumlah)}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: t.jenis == "masuk" || t.jenis == "Pemasukan" ? Colors.green : Colors.red,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      t.kategori,
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
+            return TransaksiItem(
+              transaksi: t,
+              onTap: () {
+
+              },
             );
           },
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.blueAccent,
+        onPressed: () async {
+          // Menunggu hasil push (true jika ada data baru disimpan)
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddTransaksiPage()),
+          );
+
+          // Jika kembali dari AddTransaksiPage dan berhasil simpan, refresh data
+          if (result == true) {
+            _loadAllData();
+          }
+        },
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.receipt_long_outlined, size: 60, color: Colors.grey[300]),
+          const SizedBox(height: 10),
+          const Text(
+            "Tidak ada riwayat transaksi",
+            style: TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 5),
+          ElevatedButton(
+              onPressed: _loadAllData,
+              child: const Text("Refresh Data")
+          )
+        ],
       ),
     );
   }
