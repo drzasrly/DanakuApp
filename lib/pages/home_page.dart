@@ -12,283 +12,172 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final List<String> daftarKategori = ["Makan", "Transport", "Belanja", "Tagihan", "Hiburan", "Lainnya"];
   DateTime selectedDate = DateTime.now();
-  final ExchangeService _exchangeService = ExchangeService();
+  List<Transaksi> transaksiBulanIni = [];
+  String viewMode = "Total"; // Pengeluaran, Penghasilan, Total
+  bool isCalendarView = true;
+  bool _isObscured = false;
 
   @override
   void initState() {
     super.initState();
-    _initData();
+    _loadTransaksi();
   }
 
-  // Fungsi untuk refresh data dari SQLite ke variabel global AppData
-  Future<void> _initData() async {
-    final listT = await DatabaseHelper.instance.fetchTransaksi();
-    final listW = await DatabaseHelper.instance.fetchWallets();
-
+  Future<void> _loadTransaksi() async {
+    final allTransaksi = await DatabaseHelper.instance.fetchTransaksi();
     setState(() {
-      AppData.transaksi = listT;
-      AppData.wallets = listW;
-
-      if (AppData.wallets.isEmpty) {
-        AppData.wallets = [Wallet(nama: "Utama", saldo: 0)];
-        DatabaseHelper.instance.saveWallets(AppData.wallets);
-      }
+      transaksiBulanIni = allTransaksi.where((t) {
+        return t.tanggal.month == selectedDate.month && t.tanggal.year == selectedDate.year;
+      }).toList();
     });
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2101),
-    );
-    if (picked != null && picked != selectedDate) {
-      setState(() {
-        selectedDate = picked;
-      });
+  void _nextMonth() {
+    setState(() {
+      selectedDate = DateTime(selectedDate.year, selectedDate.month + 1, 1);
+      _loadTransaksi();
+    });
+  }
+
+  void _prevMonth() {
+    setState(() {
+      selectedDate = DateTime(selectedDate.year, selectedDate.month - 1, 1);
+      _loadTransaksi();
+    });
+  }
+
+  IconData _getCategoryIcon(String kategori) {
+    switch (kategori.toLowerCase()) {
+      case 'makan': return Icons.restaurant;
+      case 'transport': return Icons.directions_car;
+      case 'belanja': return Icons.shopping_cart;
+      case 'tagihan': return Icons.receipt;
+      case 'hiburan': return Icons.movie;
+      default: return Icons.category;
     }
   }
 
-  void showInputDialog(String jenis) {
-    if (jenis == "keluar" && AppData.wallets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Tambahkan wallet terlebih dahulu!")),
-      );
-      return;
+  Color _getCategoryColor(String kategori) {
+    switch (kategori.toLowerCase()) {
+      case 'makan': return Colors.orange;
+      case 'transport': return Colors.blue;
+      case 'belanja': return Colors.pink;
+      case 'tagihan': return Colors.red;
+      case 'hiburan': return Colors.purple;
+      default: return Colors.grey;
     }
-
-    final TextEditingController ketController = TextEditingController();
-    final TextEditingController jmlController = TextEditingController();
-    final TextEditingController usdController = TextEditingController();
-
-    int? selectedWalletIndex = AppData.wallets.isNotEmpty ? 0 : null;
-    String selectedKategori = "Lainnya";
-    double currentRate = 15800.0;
-    bool isFetchingKurs = false;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            double screenWidth = MediaQuery.of(context).size.width;
-            return AlertDialog(
-              insetPadding: EdgeInsets.symmetric(horizontal: screenWidth > 600 ? screenWidth * 0.2 : 20),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: Text(
-                jenis == "masuk" ? "Tambah Pemasukan" : "Catat Pengeluaran",
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: jenis == "masuk" ? Colors.green : Colors.red
-                ),
-              ),
-              content: SizedBox(
-                width: 400,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TextField(
-                          controller: ketController,
-                          decoration: const InputDecoration(labelText: "Keterangan", hintText: "Misal: Jajan Makan Siang")
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: usdController,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(labelText: "USD", prefixText: "\$ "),
-                              onChanged: (val) async {
-                                if (val.isNotEmpty) {
-                                  setDialogState(() => isFetchingKurs = true);
-                                  try {
-                                    final data = await _exchangeService.fetchRates();
-                                    currentRate = data['rates']['IDR'].toDouble();
-                                    await DatabaseHelper.instance.saveLastRate(currentRate);
-                                  } catch (e) {
-                                    currentRate = await DatabaseHelper.instance.getLastRate();
-                                  }
-                                  double usdVal = double.tryParse(val) ?? 0;
-                                  setDialogState(() {
-                                    jmlController.text = (usdVal * currentRate).toInt().toString();
-                                    isFetchingKurs = false;
-                                  });
-                                } else {
-                                  jmlController.clear();
-                                }
-                              },
-                            ),
-                          ),
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 8.0),
-                            child: Icon(Icons.compare_arrows, color: Colors.grey, size: 20),
-                          ),
-                          Expanded(
-                            child: TextField(
-                                controller: jmlController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(labelText: "IDR", prefixText: "Rp ")
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (isFetchingKurs) const LinearProgressIndicator(),
-                      const SizedBox(height: 20),
-                      // ... (Pilih Wallet & Kategori)
-                      if (AppData.wallets.isNotEmpty) ...[
-                        const Text("Pilih Wallet", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 5,
-                          children: List.generate(AppData.wallets.length, (index) => ChoiceChip(
-                            label: Text(AppData.wallets[index].nama, style: const TextStyle(fontSize: 11)),
-                            selected: selectedWalletIndex == index,
-                            onSelected: (val) => setDialogState(() => selectedWalletIndex = index),
-                          )),
-                        ),
-                      ],
-                      if (jenis == "keluar") ...[
-                        const SizedBox(height: 15),
-                        const Text("Kategori", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 5,
-                          children: daftarKategori.map((kat) => ChoiceChip(
-                            label: Text(kat, style: const TextStyle(fontSize: 11)),
-                            selected: selectedKategori == kat,
-                            onSelected: (val) => setDialogState(() => selectedKategori = kat),
-                          )).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
-                ElevatedButton(
-                  onPressed: () async {
-                    int? jumlah = int.tryParse(jmlController.text);
-                    if (jumlah != null && selectedWalletIndex != null) {
-                      final newTransaksi = Transaksi(
-                        keterangan: ketController.text,
-                        jumlah: jumlah,
-                        jenis: jenis,
-                        tanggal: selectedDate,
-                        walletNama: AppData.wallets[selectedWalletIndex!].nama,
-                        kategori: jenis == "keluar" ? selectedKategori : "Pemasukan",
-                      );
-
-                      // Simpan ke Database
-                      await DatabaseHelper.instance.insertTransaksi(newTransaksi);
-
-                      // Tarik data terbaru untuk sinkronisasi list dan saldo
-                      await _initData();
-
-                      if (mounted) Navigator.pop(context);
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: jenis == "masuk" ? Colors.green : Colors.red),
-                  child: const Text("Simpan", style: TextStyle(color: Colors.white)),
-                )
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Filter transaksi untuk ditampilkan di riwayat hari ini
-    final filteredTransaksi = AppData.transaksi.where((t) {
-      return t.tanggal.day == selectedDate.day &&
-          t.tanggal.month == selectedDate.month &&
-          t.tanggal.year == selectedDate.year;
-    }).toList().reversed.toList();
-
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
-      body: CustomScrollView(
-        slivers: [
-          // Header
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.only(top: 60, left: 20, right: 20, bottom: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Stack(
+        children: [
+          // Background Pink Gradient
+          Container(
+            height: 350,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFFFF528F), Color(0xFFFF7A9F)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+          ),
+          
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  InkWell(
-                    onTap: () => _selectDate(context),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Top Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text("Halo, Elga!", style: TextStyle(fontSize: 13, color: Colors.grey)),
+                        const Icon(Icons.search, color: Colors.white, size: 28),
                         Row(
                           children: [
-                            Text(DateFormat('EEEE, dd MMMM yyyy').format(selectedDate),
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                            const Icon(Icons.arrow_drop_down),
+                            GestureDetector(
+                              onTap: () => setState(() => isCalendarView = false),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: !isCalendarView ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.shopping_basket, color: !isCalendarView ? Colors.pink : Colors.white, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text("Detail", style: TextStyle(color: !isCalendarView ? Colors.pink : Colors.white, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            GestureDetector(
+                              onTap: () => setState(() => isCalendarView = true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: isCalendarView ? Colors.white : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.calendar_month, color: isCalendarView ? Colors.blue : Colors.white, size: 20),
+                                    const SizedBox(width: 8),
+                                    Text("Kalender", style: TextStyle(color: isCalendarView ? Colors.pink : Colors.white, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ),
-          // Action Buttons
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(15),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: _quickActionButton(icon: Icons.add_circle, label: "Pemasukan", color: Colors.green, onTap: () => showInputDialog("masuk"))),
-                  Expanded(child: _quickActionButton(icon: Icons.remove_circle, label: "Pengeluaran", color: Colors.red, onTap: () => showInputDialog("keluar"))),
-                ],
-              ),
-            ),
-          ),
-          // List Riwayat
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-              child: Text("Riwayat Hari Ini", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: filteredTransaksi.isEmpty
-                ? const SliverToBoxAdapter(child: Center(child: Padding(padding: EdgeInsets.all(40), child: Text("Belum ada transaksi"))))
-                : SliverList(
-              delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                  final t = filteredTransaksi[index];
-                  return Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                    child: ListTile(
-                      leading: Icon(t.jenis == "masuk" ? Icons.arrow_downward : Icons.arrow_upward, color: t.jenis == "masuk" ? Colors.green : Colors.red),
-                      title: Text(t.keterangan),
-                      subtitle: Text("${t.kategori} • ${t.walletNama}"),
-                      trailing: Text("Rp ${NumberFormat.decimalPattern('id').format(t.jumlah)}", style: TextStyle(fontWeight: FontWeight.bold, color: t.jenis == "masuk" ? Colors.green : Colors.red)),
+                  
+                  // Title
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Text(
+                      "catatan mada",
+                      style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
                     ),
-                  );
-                },
-                childCount: filteredTransaksi.length,
+                  ),
+                  
+                  // Horizontal Actions
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: Row(
+                      children: [
+                        _topActionItem(Icons.person_pin_outlined, "catatan ...", true),
+                        const SizedBox(width: 25),
+                        _topActionItem(Icons.add, "Baru Buku", false),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 10),
+
+                  // Conditional View
+                  if (isCalendarView) ...[
+                    _buildCalendarCard(),
+                    const SizedBox(height: 20),
+                    _buildBottomTotals(),
+                  ] else ...[
+                    _buildSummaryCard(),
+                    const SizedBox(height: 20),
+                    _buildTransactionList(),
+                  ],
+                  
+                  const SizedBox(height: 100),
+                ],
               ),
             ),
           ),
@@ -297,16 +186,304 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _quickActionButton({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
-    return InkWell(
-      onTap: onTap,
+  Widget _topActionItem(IconData icon, String label, bool isSelected) {
+    return Column(
+      children: [
+        Container(
+          width: 65, height: 65,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white.withAlpha(80) : Colors.transparent,
+            border: isSelected ? null : Border.all(color: Colors.white.withAlpha(150), width: 1.5),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Icon(icon, color: isSelected ? Colors.white : Colors.tealAccent, size: 30),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    int totalIncome = transaksiBulanIni.where((t) => t.jenis == "masuk" || t.jenis == "pemasukan").fold(0, (sum, t) => sum + t.jumlah);
+    int totalExpense = transaksiBulanIni.where((t) => t.jenis == "keluar" || t.jenis == "pengeluaran").fold(0, (sum, t) => sum + t.jumlah);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))],
+      ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 30),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+              IconButton(
+                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                onPressed: () => setState(() => _isObscured = !_isObscured),
+              ),
+            ],
+          ),
           const SizedBox(height: 5),
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          Text(
+            _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}",
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 15),
+          const Divider(height: 1, color: Colors.black12),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              Column(
+                children: [
+                  Text(
+                    _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome)}",
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_circle_down, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      const Text("Penghasilan", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+              Column(
+                children: [
+                  Text(
+                    _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalExpense)}",
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_circle_up, size: 14, color: Colors.grey.shade600),
+                      const SizedBox(width: 4),
+                      const Text("Pengeluaran", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTransactionList() {
+    Map<String, List<Transaksi>> grouped = {};
+    for (var t in transaksiBulanIni) {
+      String key = DateFormat('yyyy-MM-dd').format(t.tanggal);
+      grouped[key] ??= [];
+      grouped[key]!.add(t);
+    }
+    var keys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    if (keys.isEmpty) return const Center(child: Padding(padding: EdgeInsets.all(40), child: Text("Belum ada transaksi")));
+
+    return Column(
+      children: keys.map((dateKey) {
+        var list = grouped[dateKey]!;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(DateFormat('E, dd/MM').format(DateTime.parse(dateKey)), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.arrow_drop_down, color: Colors.pink, size: 20),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              ...list.map((t) {
+                final catData = [...AppData.pengeluaranCategories, ...AppData.pemasukanCategories]
+                    .firstWhere((c) => c.nama == t.kategori, orElse: () => TransactionCategory(nama: t.kategori, icon: Icons.category));
+                return ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: catData.imagePath != null ? Colors.pink.withAlpha(25) : _getCategoryColor(t.kategori).withAlpha(50),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: catData.imagePath != null 
+                        ? Image.asset(catData.imagePath!, width: 24, height: 24)
+                        : Icon(_getCategoryIcon(t.kategori), color: _getCategoryColor(t.kategori)),
+                  ),
+                  title: Text(t.keterangan, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(t.walletNama, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  trailing: Text(
+                    "${(t.jenis.toLowerCase() == 'masuk' || t.jenis.toLowerCase() == 'pemasukan') ? '+' : '-'}Rp${NumberFormat.decimalPattern('id').format(t.jumlah)}",
+                    style: TextStyle(
+                      color: (t.jenis.toLowerCase() == "masuk" || t.jenis.toLowerCase() == "pemasukan") ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildCalendarCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 15),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 15, offset: const Offset(0, 10))],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(icon: const Icon(Icons.chevron_left, color: Colors.pink), onPressed: _prevMonth),
+              Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.pink, borderRadius: BorderRadius.circular(20)),
+                    child: const Text("Month", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
+                  IconButton(icon: const Icon(Icons.chevron_right, color: Colors.pink), onPressed: _nextMonth),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((day) {
+              return SizedBox(width: 40, child: Center(child: Text(day, style: TextStyle(color: day == "Min" || day == "Sab" ? Colors.red.shade300 : Colors.grey, fontSize: 13))));
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          _buildCalendarGrid(),
+          const SizedBox(height: 20),
+          Container(
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(30)),
+            padding: const EdgeInsets.all(4),
+            child: Row(
+              children: ["Pengeluaran", "Penghasilan", "Total"].map((mode) {
+                bool isSelected = viewMode == mode;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => viewMode = mode),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.transparent,
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: isSelected ? [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 5)] : null,
+                      ),
+                      child: Center(child: Text(mode, style: TextStyle(color: isSelected ? Colors.pink : Colors.grey, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12))),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarGrid() {
+    final firstDayOfMonth = DateTime(selectedDate.year, selectedDate.month, 1);
+    final lastDayOfMonth = DateTime(selectedDate.year, selectedDate.month + 1, 0);
+    final daysInMonth = lastDayOfMonth.day;
+    final firstWeekday = firstDayOfMonth.weekday % 7;
+    List<Widget> dayWidgets = [];
+    for (int i = 0; i < firstWeekday; i++) dayWidgets.add(const SizedBox(height: 60));
+    for (int day = 1; day <= daysInMonth; day++) {
+      final date = DateTime(selectedDate.year, selectedDate.month, day);
+      final isToday = date.day == DateTime.now().day && date.month == DateTime.now().month && date.year == DateTime.now().year;
+      int income = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "masuk" || t.jenis == "pemasukan")).fold(0, (sum, t) => sum + t.jumlah);
+      int expense = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "keluar" || t.jenis == "pengeluaran")).fold(0, (sum, t) => sum + t.jumlah);
+      dayWidgets.add(
+        Container(
+          height: 65,
+          padding: const EdgeInsets.all(2),
+          child: Column(
+            children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: isToday ? Colors.pink : Colors.transparent, shape: BoxShape.circle),
+                child: Center(child: Text("$day", style: TextStyle(color: isToday ? Colors.white : (date.weekday == 7 || date.weekday == 6 ? Colors.red.shade400 : Colors.black87), fontWeight: isToday ? FontWeight.bold : FontWeight.normal))),
+              ),
+              const SizedBox(height: 2),
+              if (viewMode == "Total") ...[
+                if (income - expense != 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: (income - expense) > 0 ? Colors.green.shade400 : Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                    child: Text("${(income - expense) > 0 ? '' : '-'}${( (income - expense).abs() / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                  ),
+              ] else if (viewMode == "Penghasilan") ...[
+                if (income > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(4)),
+                    child: Text("${(income / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8)),
+                  ),
+              ] else if (viewMode == "Pengeluaran") ...[
+                if (expense > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                    child: Text("-${(expense / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8)),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+    return GridView.count(crossAxisCount: 7, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), children: dayWidgets);
+  }
+
+  Widget _buildBottomTotals() {
+    int totalIncome = transaksiBulanIni.where((t) => t.jenis == "masuk" || t.jenis == "pemasukan").fold(0, (sum, t) => sum + t.jumlah);
+    int totalExpense = transaksiBulanIni.where((t) => t.jenis == "keluar" || t.jenis == "pengeluaran").fold(0, (sum, t) => sum + t.jumlah);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}", "Total"),
+          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome)}", "Penghasilan"),
+          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalExpense)}", "Pengeluaran"),
+        ],
+      ),
+    );
+  }
+
+  Widget _bottomTotalItem(String amount, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(amount, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.pink)),
+        const SizedBox(height: 4),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+      ],
     );
   }
 }
