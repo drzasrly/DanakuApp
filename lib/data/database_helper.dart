@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'app_data.dart';
 import 'package:flutter/material.dart';
+import '../services/sync_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -61,7 +62,7 @@ class DatabaseHelper {
     )
     ''');
 
-    // Insert default wallets from AppData
+    // Insert default wallets from AppData (now only contains "Utama")
     for (var w in AppData.wallets) {
       await db.insert('wallets', {
         'nama': w.nama, 
@@ -90,11 +91,15 @@ class DatabaseHelper {
   Future<void> insertCategory(TransactionCategory cat, String jenis) async {
     final db = await database;
     await db.insert('categories', cat.toMap(jenis));
+    // Trigger pencadangan otomatis senyap di background
+    SyncService.instance.triggerAutoBackup();
   }
 
   Future<void> deleteCategory(int id) async {
     final db = await database;
     await db.delete('categories', where: 'id = ?', whereArgs: [id]);
+    // Trigger pencadangan otomatis senyap di background
+    SyncService.instance.triggerAutoBackup();
   }
 
   // --- FUNGSI SETTINGS (UNTUK OFFLINE KURS) ---
@@ -121,6 +126,39 @@ class DatabaseHelper {
     return 15800.0;
   }
 
+  // --- FUNGSI PENGATURAN GENERIK (UNTUK AUTH & BACKUP SIMULASI) ---
+  Future<void> saveSetting(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      'settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> getSetting(String key) async {
+    final db = await database;
+    final maps = await db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: [key]
+    );
+
+    if (maps.isNotEmpty) {
+      return maps.first['value'] as String?;
+    }
+    return null;
+  }
+
+  Future<void> deleteSetting(String key) async {
+    final db = await database;
+    await db.delete(
+      'settings',
+      where: 'key = ?',
+      whereArgs: [key]
+    );
+  }
+
   // --- FUNGSI TRANSAKSI ---
   Future<void> insertTransaksi(Transaksi t) async {
     final db = await database;
@@ -133,7 +171,7 @@ class DatabaseHelper {
     );
 
     if (walletMaps.isNotEmpty) {
-      int saldoSekarang = walletMaps.first['saldo'];
+      int saldoSekarang = walletMaps.first['saldo'] as int;
       int saldoBaru;
       if (t.jenis.toLowerCase() == 'keluar' || t.jenis.toLowerCase() == 'pengeluaran') {
         saldoBaru = saldoSekarang - t.jumlah;
@@ -142,6 +180,9 @@ class DatabaseHelper {
       }
       await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ?', whereArgs: [t.walletNama]);
     }
+
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
   }
 
   Future<List<Transaksi>> fetchTransaksi() async {
@@ -174,6 +215,83 @@ class DatabaseHelper {
     )).toList();
   }
 
+  Future<void> deleteTransaksi(Transaksi t) async {
+    final db = await database;
+    
+    // Reverse the wallet balance
+    final List<Map<String, dynamic>> walletMaps = await db.query(
+      'wallets',
+      where: 'nama = ?',
+      whereArgs: [t.walletNama],
+    );
+
+    if (walletMaps.isNotEmpty) {
+      int saldoSekarang = walletMaps.first['saldo'] as int;
+      int saldoBaru;
+      if (t.jenis.toLowerCase() == 'keluar' || t.jenis.toLowerCase() == 'pengeluaran') {
+        saldoBaru = saldoSekarang + t.jumlah;
+      } else {
+        saldoBaru = saldoSekarang - t.jumlah;
+      }
+      await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ?', whereArgs: [t.walletNama]);
+    }
+
+    await db.delete('transaksi', where: 'id = ?', whereArgs: [t.id]);
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
+  }
+
+  Future<void> updateTransaksi(Transaksi oldT, Transaksi newT) async {
+    final db = await database;
+
+    // 1. Reverse old impact
+    final List<Map<String, dynamic>> oldWalletMaps = await db.query(
+      'wallets',
+      where: 'nama = ?',
+      whereArgs: [oldT.walletNama],
+    );
+
+    if (oldWalletMaps.isNotEmpty) {
+      int saldoSekarang = oldWalletMaps.first['saldo'] as int;
+      int reversedSaldo;
+      if (oldT.jenis.toLowerCase() == 'keluar' || oldT.jenis.toLowerCase() == 'pengeluaran') {
+        reversedSaldo = saldoSekarang + oldT.jumlah;
+      } else {
+        reversedSaldo = saldoSekarang - oldT.jumlah;
+      }
+      await db.update('wallets', {'saldo': reversedSaldo}, where: 'nama = ?', whereArgs: [oldT.walletNama]);
+    }
+
+    // 2. Apply new impact
+    final List<Map<String, dynamic>> newWalletMaps = await db.query(
+      'wallets',
+      where: 'nama = ?',
+      whereArgs: [newT.walletNama],
+    );
+
+    if (newWalletMaps.isNotEmpty) {
+      int saldoTarget;
+      if (oldT.walletNama == newT.walletNama) {
+        final updatedWallet = await db.query('wallets', where: 'nama = ?', whereArgs: [newT.walletNama]);
+        saldoTarget = updatedWallet.first['saldo'] as int;
+      } else {
+        saldoTarget = newWalletMaps.first['saldo'] as int;
+      }
+
+      int saldoBaru;
+      if (newT.jenis.toLowerCase() == 'keluar' || newT.jenis.toLowerCase() == 'pengeluaran') {
+        saldoBaru = saldoTarget - newT.jumlah;
+      } else {
+        saldoBaru = saldoTarget + newT.jumlah;
+      }
+      await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ?', whereArgs: [newT.walletNama]);
+    }
+
+    await db.update('transaksi', newT.toMap(), where: 'id = ?', whereArgs: [oldT.id]);
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
+  }
+
   Future<void> resetData() async {
     final db = await database;
     await db.delete('transaksi');
@@ -184,5 +302,7 @@ class DatabaseHelper {
       'jenis': 'Akun Virtual',
       'icon_code': Icons.account_balance_wallet.codePoint,
     });
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
   }
 }

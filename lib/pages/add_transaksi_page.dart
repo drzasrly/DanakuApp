@@ -16,7 +16,7 @@ class _AddTransaksiPageState extends State<AddTransaksiPage> {
   final TextEditingController _jumlahController = TextEditingController();
 
   String _selectedJenis = "Pengeluaran"; // Default
-  String _selectedWallet = "Utama"; // Default sesuai AppData
+  final String _selectedWallet = "Utama"; // Default sesuai AppData
   String _selectedKategori = "Makanan"; // Default kategori
   DateTime _selectedDate = DateTime.now();
 
@@ -127,7 +127,7 @@ class _AddTransaksiPageState extends State<AddTransaksiPage> {
 
               // --- PILIH KATEGORI ---
               DropdownButtonFormField(
-                value: _selectedKategori,
+                initialValue: _selectedKategori,
                 decoration: InputDecoration(
                   labelText: "Kategori",
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

@@ -52,118 +52,148 @@ class _WalletPageState extends State<WalletPage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
-      body: Stack(
-        children: [
-          // Pink Header Background
-          Container(
-            height: 380,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFFFF528F), Color(0xFFFF7A9F)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Pink Header - Content Driven Height
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFF528F), Color(0xFFFF7A9F)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -50, top: 100,
-                  child: Container(width: 200, height: 200, decoration: BoxDecoration(color: Colors.white.withAlpha(20), shape: BoxShape.circle)),
-                ),
-                Positioned(
-                  left: -30, bottom: 20,
-                  child: Container(width: 150, height: 150, decoration: BoxDecoration(color: Colors.white.withAlpha(15), shape: BoxShape.circle)),
-                ),
-              ],
-            ),
-          ),
-          
-          SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Stack(
                 children: [
-                  // Top Toolbar
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Icon(Icons.menu_book, color: Colors.white, size: 28),
-                        Row(
+                  // Decorative Circles
+                  Positioned(
+                    right: -50, top: -20,
+                    child: Container(width: 180, height: 180, decoration: BoxDecoration(color: Colors.white.withAlpha(20), shape: BoxShape.circle)),
+                  ),
+                  Positioned(
+                    left: -30, bottom: -20,
+                    child: Container(width: 120, height: 120, decoration: BoxDecoration(color: Colors.white.withAlpha(15), shape: BoxShape.circle)),
+                  ),
+                  
+                  // Content
+                  SafeArea(
+                    bottom: false,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 800),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.white),
-                              onPressed: () => setState(() => _isObscured = !_isObscured),
+                            // Top Toolbar
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Icon(Icons.menu_book, color: Colors.white, size: 28),
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.white, size: 20),
+                                        onPressed: () => setState(() => _isObscured = !_isObscured),
+                                      ),
+                                      const SizedBox(width: 15),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(Icons.monetization_on, color: Colors.white, size: 22),
+                                        onPressed: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Currency: IDR")));
+                                        },
+                                      ),
+                                      const SizedBox(width: 15),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(Icons.sort, color: Colors.white, size: 22),
+                                        onPressed: _navigateToManageWallet,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.monetization_on, color: Colors.white, size: 28),
-                              onPressed: () {
-                                // TODO: Implement Currency Setting
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Currency: IDR")));
-                              },
+                            
+                            // Dompet Title & Main Balance
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 5),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text("Dompet", style: TextStyle(color: Colors.white, fontSize: isTablet ? 36 : 28, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 5),
+                                  const Text("Aset Bersih", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const SizedBox(height: 2),
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      _isObscured ? "****" : "Rp${NumberFormat.decimalPattern('id').format(totalAsset - totalHutang)}",
+                                      style: TextStyle(color: Colors.white, fontSize: isTablet ? 32 : 24, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 5),
-                            IconButton(
-                              icon: const Icon(Icons.sort, color: Colors.white, size: 28),
-                              onPressed: _navigateToManageWallet,
+                            
+                            const SizedBox(height: 15),
+                            
+                            // Sub Stats (Aset & Hutang)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 30),
+                              child: Row(
+                                children: [
+                                  Expanded(child: _buildSubStat("Aset", totalAsset)),
+                                  const SizedBox(width: 20),
+                                  Expanded(child: _buildSubStat("Hutang", totalHutang)),
+                                ],
+                              ),
                             ),
+                            
+                            const SizedBox(height: 30),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
-                  
-                  // Dompet Title & Main Balance
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Dompet", style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 20),
-                        const Text("Aset Bersih", style: TextStyle(color: Colors.white70, fontSize: 16)),
-                        const SizedBox(height: 5),
-                        Text(
-                          _isObscured ? "****" : "Rp${NumberFormat.decimalPattern('id').format(totalAsset - totalHutang)}",
-                          style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 20),
-                  
-                  // Sub Stats (Aset & Hutang)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 30),
-                    child: Row(
-                      children: [
-                        _buildSubStat("Aset", totalAsset),
-                        const SizedBox(width: 60),
-                        _buildSubStat("Hutang", totalHutang),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 30),
-                  
-                  // Wallet Sections
-                  _buildWalletSection("Hutang", AppData.wallets.where((w) => w.jenis == "Hutang").toList()),
-                  const SizedBox(height: 20),
-                  _buildWalletSection("Akun virtual", AppData.wallets.where((w) => w.jenis != "Hutang").toList()),
-                  
-                  const SizedBox(height: 100),
                 ],
               ),
             ),
-          ),
-        ],
+            
+            // White Content - List of Wallets
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    _buildWalletSection("Hutang", AppData.wallets.where((w) => w.jenis == "Hutang").toList()),
+                    const SizedBox(height: 20),
+                    _buildWalletSection("Akun virtual", AppData.wallets.where((w) => w.jenis != "Hutang").toList()),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget _buildSubStat(String label, int value) {
     return Column(
@@ -203,7 +233,7 @@ class _WalletPageState extends State<WalletPage> {
               children: [
                 Text(title, style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
                 Text(
-                  "$title: ${_isObscured ? '****' : 'Rp' + NumberFormat.decimalPattern('id').format(sectionTotal)}",
+                  "$title: ${_isObscured ? '****' : 'Rp${NumberFormat.decimalPattern('id').format(sectionTotal)}'}",
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],

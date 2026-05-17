@@ -88,12 +88,7 @@ class TransactionCategory {
 
 class AppData {
   static List<Wallet> wallets = [
-    Wallet(nama: "paylatter", saldo: 0, jenis: "Hutang", icon: Icons.credit_card),
-    Wallet(nama: "ganti uang beli hp", saldo: 0, jenis: "Hutang", icon: Icons.phone_android),
-    Wallet(nama: "TapCash Mark", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance),
-    Wallet(nama: "isi dompet", saldo: 200000, jenis: "Akun Virtual", icon: Icons.money),
-    Wallet(nama: "Shopeepay", saldo: 0, jenis: "Akun Virtual", icon: Icons.wallet),
-    Wallet(nama: "bca", saldo: 0, jenis: "Akun Virtual", icon: Icons.credit_card),
+    Wallet(nama: "Utama", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance_wallet),
   ];
 
   static List<Transaksi> transaksi = [];

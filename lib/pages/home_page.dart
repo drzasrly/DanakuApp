@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../data/app_data.dart';
 import '../data/database_helper.dart';
-import '../services/exchange_service.dart';
+import 'transaction_input_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +15,7 @@ class _HomePageState extends State<HomePage> {
   DateTime selectedDate = DateTime.now();
   List<Transaksi> transaksiBulanIni = [];
   String viewMode = "Total"; // Pengeluaran, Penghasilan, Total
-  bool isCalendarView = true;
+  bool isCalendarView = false;
   bool _isObscured = false;
 
   @override
@@ -71,13 +71,16 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7F6),
       body: Stack(
         children: [
-          // Background Pink Gradient
+          // Background Pink Gradient - Responsive Height
           Container(
-            height: 350,
+            height: screenSize.height * 0.4,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFFFF528F), Color(0xFFFF7A9F)],
@@ -88,96 +91,88 @@ class _HomePageState extends State<HomePage> {
           ),
           
           SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Header
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Icon(Icons.search, color: Colors.white, size: 28),
-                        Row(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            GestureDetector(
-                              onTap: () => setState(() => isCalendarView = false),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: !isCalendarView ? Colors.white : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.shopping_basket, color: !isCalendarView ? Colors.pink : Colors.white, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text("Detail", style: TextStyle(color: !isCalendarView ? Colors.pink : Colors.white, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            GestureDetector(
-                              onTap: () => setState(() => isCalendarView = true),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isCalendarView ? Colors.white : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.calendar_month, color: isCalendarView ? Colors.blue : Colors.white, size: 20),
-                                    const SizedBox(width: 8),
-                                    Text("Kalender", style: TextStyle(color: isCalendarView ? Colors.pink : Colors.white, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
+                            const Icon(Icons.search, color: Colors.white, size: 28),
+                            Flexible(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  _buildViewToggleButton(
+                                    icon: Icons.shopping_basket,
+                                    label: "Detail",
+                                    isActive: !isCalendarView,
+                                    activeColor: Colors.pink,
+                                    onTap: () => setState(() => isCalendarView = false),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  _buildViewToggleButton(
+                                    icon: Icons.calendar_month,
+                                    label: "Kalender",
+                                    isActive: isCalendarView,
+                                    activeColor: Colors.blue,
+                                    onTap: () => setState(() => isCalendarView = true),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Title
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    child: Text(
-                      "catatan mada",
-                      style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  
-                  // Horizontal Actions
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    child: Row(
-                      children: [
-                        _topActionItem(Icons.person_pin_outlined, "catatan ...", true),
-                        const SizedBox(width: 25),
-                        _topActionItem(Icons.add, "Baru Buku", false),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 10),
+                      ),
+                      
+                      // Title
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        child: Text(
+                          "catatan mada",
+                          style: TextStyle(
+                            color: Colors.white, 
+                            fontSize: isTablet ? 40 : 32, 
+                            fontWeight: FontWeight.bold
+                          ),
+                        ),
+                      ),
+                      
+                      // Horizontal Actions
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        child: Row(
+                          children: [
+                            _topActionItem(Icons.person_pin_outlined, "catatan ...", true),
+                            const SizedBox(width: 25),
+                            _topActionItem(Icons.add, "Baru Buku", false),
+                          ],
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 10),
 
-                  // Conditional View
-                  if (isCalendarView) ...[
-                    _buildCalendarCard(),
-                    const SizedBox(height: 20),
-                    _buildBottomTotals(),
-                  ] else ...[
-                    _buildSummaryCard(),
-                    const SizedBox(height: 20),
-                    _buildTransactionList(),
-                  ],
-                  
-                  const SizedBox(height: 100),
-                ],
+                      // Conditional View
+                      if (isCalendarView) ...[
+                        _buildCalendarCard(),
+                        const SizedBox(height: 20),
+                        _buildBottomTotals(),
+                      ] else ...[
+                        _buildSummaryCard(),
+                        const SizedBox(height: 20),
+                        _buildTransactionList(),
+                      ],
+                      
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -186,21 +181,61 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _topActionItem(IconData icon, String label, bool isSelected) {
-    return Column(
-      children: [
-        Container(
-          width: 65, height: 65,
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white.withAlpha(80) : Colors.transparent,
-            border: isSelected ? null : Border.all(color: Colors.white.withAlpha(150), width: 1.5),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Icon(icon, color: isSelected ? Colors.white : Colors.tealAccent, size: 30),
+  Widget _buildViewToggleButton({
+    required IconData icon,
+    required String label,
+    required bool isActive,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.white.withAlpha(50),
+          borderRadius: BorderRadius.circular(25),
         ),
-        const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: isActive ? activeColor : Colors.white, size: 18),
+            const SizedBox(width: 5),
+            Text(
+              label, 
+              style: TextStyle(
+                color: isActive ? activeColor : Colors.white, 
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              )
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _topActionItem(IconData icon, String label, bool isSelected) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double size = MediaQuery.of(context).size.width > 600 ? 80 : 65;
+        return Column(
+          children: [
+            Container(
+              width: size, height: size,
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white.withAlpha(80) : Colors.transparent,
+                border: isSelected ? null : Border.all(color: Colors.white.withAlpha(150), width: 1.5),
+                borderRadius: BorderRadius.circular(size * 0.3),
+              ),
+              child: Icon(icon, color: isSelected ? Colors.white : Colors.tealAccent, size: size * 0.45),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+          ],
+        );
+      }
     );
   }
 
@@ -216,64 +251,84 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 5))],
       ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
             children: [
-              Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-              IconButton(
-                icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-                onPressed: () => setState(() => _isObscured = !_isObscured),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}",
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 15),
-          const Divider(height: 1, color: Colors.black12),
-          const SizedBox(height: 15),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              Column(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome)}",
-                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(Icons.arrow_circle_down, size: 14, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      const Text("Penghasilan", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
+                  Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  IconButton(
+                    icon: Icon(_isObscured ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                    onPressed: () => setState(() => _isObscured = !_isObscured),
                   ),
                 ],
               ),
-              Column(
+              const SizedBox(height: 5),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}",
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 15),
+              const Divider(height: 1, color: Colors.black12),
+              const SizedBox(height: 15),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  Text(
-                    _isObscured ? "Rp •••••••" : "Rp${NumberFormat.decimalPattern('id').format(totalExpense)}",
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _isObscured ? "Rp •••••" : "Rp${NumberFormat.decimalPattern('id').format(totalIncome)}",
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.arrow_circle_down, size: 14, color: Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            const Text("Masuk", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Icon(Icons.arrow_circle_up, size: 14, color: Colors.grey.shade600),
-                      const SizedBox(width: 4),
-                      const Text("Pengeluaran", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
+                  Container(height: 30, width: 1, color: Colors.black12),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _isObscured ? "Rp •••••" : "Rp${NumberFormat.decimalPattern('id').format(totalExpense)}",
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.arrow_circle_up, size: 14, color: Colors.grey.shade600),
+                            const SizedBox(width: 4),
+                            const Text("Keluar", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ],
-          ),
-        ],
+          );
+        }
       ),
     );
   }
@@ -312,6 +367,63 @@ class _HomePageState extends State<HomePage> {
                 final catData = [...AppData.pengeluaranCategories, ...AppData.pemasukanCategories]
                     .firstWhere((c) => c.nama == t.kategori, orElse: () => TransactionCategory(nama: t.kategori, icon: Icons.category));
                 return ListTile(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                      builder: (context) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 10),
+                          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(height: 20),
+                          ListTile(
+                            leading: const Icon(Icons.edit, color: Colors.blue),
+                            title: const Text("Edit Transaksi"),
+                            onTap: () async {
+                              Navigator.pop(context);
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TransactionInputPage(
+                                    initialJenis: t.jenis.toLowerCase() == 'masuk' ? 'masuk' : 'keluar',
+                                    initialTransaksi: t,
+                                  ),
+                                ),
+                              );
+                              if (result == true) _loadTransaksi();
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.delete, color: Colors.red),
+                            title: const Text("Hapus Transaksi"),
+                            onTap: () {
+                              Navigator.pop(context);
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text("Hapus"),
+                                  content: const Text("Yakin ingin menghapus transaksi ini?"),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+                                    TextButton(
+                                      onPressed: () async {
+                                        Navigator.pop(context);
+                                        await DatabaseHelper.instance.deleteTransaksi(t);
+                                        _loadTransaksi();
+                                      },
+                                      child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    );
+                  },
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -322,13 +434,14 @@ class _HomePageState extends State<HomePage> {
                         ? Image.asset(catData.imagePath!, width: 24, height: 24)
                         : Icon(_getCategoryIcon(t.kategori), color: _getCategoryColor(t.kategori)),
                   ),
-                  title: Text(t.keterangan, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  title: Text(t.keterangan, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
                   subtitle: Text(t.walletNama, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   trailing: Text(
                     "${(t.jenis.toLowerCase() == 'masuk' || t.jenis.toLowerCase() == 'pemasukan') ? '+' : '-'}Rp${NumberFormat.decimalPattern('id').format(t.jumlah)}",
                     style: TextStyle(
                       color: (t.jenis.toLowerCase() == "masuk" || t.jenis.toLowerCase() == "pemasukan") ? Colors.green : Colors.red,
                       fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
                 );
@@ -355,13 +468,13 @@ class _HomePageState extends State<HomePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(icon: const Icon(Icons.chevron_left, color: Colors.pink), onPressed: _prevMonth),
-              Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Flexible(child: Text(DateFormat('MMMM yyyy').format(selectedDate), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(color: Colors.pink, borderRadius: BorderRadius.circular(20)),
-                    child: const Text("Month", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    child: const Text("Month", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
                   ),
                   IconButton(icon: const Icon(Icons.chevron_right, color: Colors.pink), onPressed: _nextMonth),
                 ],
@@ -372,7 +485,7 @@ class _HomePageState extends State<HomePage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((day) {
-              return SizedBox(width: 40, child: Center(child: Text(day, style: TextStyle(color: day == "Min" || day == "Sab" ? Colors.red.shade300 : Colors.grey, fontSize: 13))));
+              return Expanded(child: Center(child: Text(day, style: TextStyle(color: day == "Min" || day == "Sab" ? Colors.red.shade300 : Colors.grey, fontSize: 12))));
             }).toList(),
           ),
           const SizedBox(height: 10),
@@ -394,7 +507,7 @@ class _HomePageState extends State<HomePage> {
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: isSelected ? [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 5)] : null,
                       ),
-                      child: Center(child: Text(mode, style: TextStyle(color: isSelected ? Colors.pink : Colors.grey, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 12))),
+                      child: Center(child: Text(mode, style: TextStyle(color: isSelected ? Colors.pink : Colors.grey, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 11))),
                     ),
                   ),
                 );
@@ -412,53 +525,71 @@ class _HomePageState extends State<HomePage> {
     final daysInMonth = lastDayOfMonth.day;
     final firstWeekday = firstDayOfMonth.weekday % 7;
     List<Widget> dayWidgets = [];
-    for (int i = 0; i < firstWeekday; i++) dayWidgets.add(const SizedBox(height: 60));
+    for (int i = 0; i < firstWeekday; i++) {
+      dayWidgets.add(const SizedBox.shrink());
+    }
     for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(selectedDate.year, selectedDate.month, day);
       final isToday = date.day == DateTime.now().day && date.month == DateTime.now().month && date.year == DateTime.now().year;
       int income = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "masuk" || t.jenis == "pemasukan")).fold(0, (sum, t) => sum + t.jumlah);
       int expense = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "keluar" || t.jenis == "pengeluaran")).fold(0, (sum, t) => sum + t.jumlah);
       dayWidgets.add(
-        Container(
-          height: 65,
-          padding: const EdgeInsets.all(2),
-          child: Column(
-            children: [
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(color: isToday ? Colors.pink : Colors.transparent, shape: BoxShape.circle),
-                child: Center(child: Text("$day", style: TextStyle(color: isToday ? Colors.white : (date.weekday == 7 || date.weekday == 6 ? Colors.red.shade400 : Colors.black87), fontWeight: isToday ? FontWeight.bold : FontWeight.normal))),
-              ),
-              const SizedBox(height: 2),
-              if (viewMode == "Total") ...[
-                if (income - expense != 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: (income - expense) > 0 ? Colors.green.shade400 : Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
-                    child: Text("${(income - expense) > 0 ? '' : '-'}${( (income - expense).abs() / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                  ),
-              ] else if (viewMode == "Penghasilan") ...[
-                if (income > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(4)),
-                    child: Text("${(income / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8)),
-                  ),
-              ] else if (viewMode == "Pengeluaran") ...[
-                if (expense > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
-                    child: Text("-${(expense / 1000).toStringAsFixed(0)} rb", style: const TextStyle(color: Colors.white, fontSize: 8)),
-                  ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return Column(
+              children: [
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(color: isToday ? Colors.pink : Colors.transparent, shape: BoxShape.circle),
+                  child: Center(child: Text("$day", style: TextStyle(color: isToday ? Colors.white : (date.weekday == 7 || date.weekday == 6 ? Colors.red.shade400 : Colors.black87), fontWeight: isToday ? FontWeight.bold : FontWeight.normal, fontSize: 12))),
+                ),
+                const SizedBox(height: 2),
+                if (viewMode == "Total") ...[
+                  if (income - expense != 0)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(color: (income - expense) > 0 ? Colors.green.shade400 : Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                        child: Text("${(income - expense) > 0 ? '' : '-'}${( (income - expense).abs() / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                ] else if (viewMode == "Penghasilan") ...[
+                  if (income > 0)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(4)),
+                        child: Text("${(income / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
+                      ),
+                    ),
+                ] else if (viewMode == "Pengeluaran") ...[
+                  if (expense > 0)
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                        child: Text("-${(expense / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
+                      ),
+                    ),
+                ],
               ],
-            ],
-          ),
+            );
+          }
         ),
       );
     }
-    return GridView.count(crossAxisCount: 7, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), children: dayWidgets);
+    return GridView.count(
+      crossAxisCount: 7, 
+      shrinkWrap: true, 
+      physics: const NeverScrollableScrollPhysics(), 
+      childAspectRatio: 0.85,
+      children: dayWidgets
+    );
   }
+
 
   Widget _buildBottomTotals() {
     int totalIncome = transaksiBulanIni.where((t) => t.jenis == "masuk" || t.jenis == "pemasukan").fold(0, (sum, t) => sum + t.jumlah);

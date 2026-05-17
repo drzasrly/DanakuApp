@@ -33,13 +33,17 @@ class _ManageWalletPageState extends State<ManageWalletPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             color: Colors.pink.shade50.withAlpha(100),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildFilterItem(Icons.check_box, "Digunakan", Colors.pink),
-                _buildFilterItem(Icons.indeterminate_check_box, "Digunakan (Bukan aset)", Colors.pink),
-                _buildFilterItem(Icons.check_box_outline_blank, "Tidak digunakan", Colors.grey),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildFilterItem(Icons.check_box, "Digunakan", Colors.pink),
+                  const SizedBox(width: 15),
+                  _buildFilterItem(Icons.indeterminate_check_box, "Bukan aset", Colors.pink),
+                  const SizedBox(width: 15),
+                  _buildFilterItem(Icons.check_box_outline_blank, "Tidak dipakai", Colors.grey),
+                ],
+              ),
             ),
           ),
           Expanded(
@@ -258,34 +262,40 @@ class _CreateWalletDetailPageState extends State<CreateWalletDetailPage> {
                   leading: IconButton(icon: const Icon(Icons.arrow_back, color: Colors.white), onPressed: () => Navigator.pop(context)),
                 ),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      crossAxisSpacing: 15,
-                      mainAxisSpacing: 15,
-                    ),
-                    itemCount: icons.length,
-                    itemBuilder: (context, index) {
-                      final icon = icons[index];
-                      final isSelected = _selectedIcon == icon;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() => _selectedIcon = icon);
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.pink.shade50.withAlpha(50),
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(color: isSelected ? Colors.pink : Colors.transparent, width: 2),
-                          ),
-                          child: Icon(icon, color: isSelected ? Colors.pink : Colors.blue.shade300, size: 28),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      int crossAxisCount = (constraints.maxWidth / 70).floor().clamp(3, 8);
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(20),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 15,
+                          mainAxisSpacing: 15,
                         ),
+                        itemCount: icons.length,
+                        itemBuilder: (context, index) {
+                          final icon = icons[index];
+                          final isSelected = _selectedIcon == icon;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedIcon = icon);
+                              Navigator.pop(context);
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.pink.shade50.withAlpha(50),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(color: isSelected ? Colors.pink : Colors.transparent, width: 2),
+                              ),
+                              child: Icon(icon, color: isSelected ? Colors.pink : Colors.blue.shade300, size: 28),
+                            ),
+                          );
+                        },
                       );
-                    },
+                    }
                   ),
                 ),
+
               ],
             ),
           ),
@@ -394,7 +404,7 @@ class _CreateWalletDetailPageState extends State<CreateWalletDetailPage> {
       leading: Icon(icon, color: Colors.blue.shade200),
       title: Text(title, style: const TextStyle(fontSize: 13)),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      trailing: Switch(value: value, onChanged: (val) {}, activeColor: Colors.pink),
+      trailing: Switch(value: value, onChanged: (val) {}, activeThumbColor: Colors.pink),
     );
   }
 }
