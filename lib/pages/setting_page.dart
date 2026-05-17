@@ -542,20 +542,94 @@ class _SettingPageState extends State<SettingPage> {
     );
   }
 
-  // 7. Ekspor CSV
-  void _handleExport() async {
+  // 7. Ekspor Laporan Keuangan (Excel, PDF, CSV)
+  void _showExportOptionsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(width: 40, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Ekspor Laporan Keuangan",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Pilih format laporan transaksi keuangan yang Anda inginkan.",
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
+                child: const Icon(Icons.table_rows_rounded, color: Colors.green),
+              ),
+              title: const Text("Format Excel (.xlsx)", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Laporan rapi siap olah di Microsoft Excel atau Google Sheets"),
+              onTap: () {
+                Navigator.pop(context);
+                _runExportProcess("excel");
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                child: const Icon(Icons.picture_as_pdf_rounded, color: Colors.red),
+              ),
+              title: const Text("Format PDF (.pdf)", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Format cetak dokumen resmi yang rapi dengan tabel"),
+              onTap: () {
+                Navigator.pop(context);
+                _runExportProcess("pdf");
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+                child: const Icon(Icons.insert_drive_file_rounded, color: Colors.blue),
+              ),
+              title: const Text("Format CSV (.csv)", style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text("Format teks raw terpisah koma yang sangat ringan"),
+              onTap: () {
+                Navigator.pop(context);
+                _runExportProcess("csv");
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _runExportProcess(String format) async {
+    String formatName = format.toUpperCase();
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Dialog(
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(color: Colors.green),
-              SizedBox(width: 20),
-              Text("Mengekspor transaksi ke CSV..."),
+              const CircularProgressIndicator(color: Colors.green),
+              const SizedBox(width: 20),
+              Text("Mengekspor transaksi ke $formatName..."),
             ],
           ),
         ),
@@ -563,7 +637,15 @@ class _SettingPageState extends State<SettingPage> {
     );
 
     try {
-      final path = await ExportService.exportTransaksiToCSV();
+      String path;
+      if (format == "excel") {
+        path = await ExportService.exportTransaksiToExcel();
+      } else if (format == "pdf") {
+        path = await ExportService.exportTransaksiToPDF();
+      } else {
+        path = await ExportService.exportTransaksiToCSV();
+      }
+      
       if (context.mounted) Navigator.pop(context); // Tutup dialog loading
       
       showDialog(
@@ -574,17 +656,18 @@ class _SettingPageState extends State<SettingPage> {
             children: [
               Icon(Icons.check_circle, color: Colors.green),
               SizedBox(width: 10),
-              Text("Laporan Diekspor!", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Ekspor Sukses!", style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Data transaksi sukses diekspor ke file CSV.", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Data transaksi sukses diekspor ke format $formatName.", style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
+                width: double.infinity,
                 decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
                 child: Text(path, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.black54)),
               ),
@@ -734,10 +817,10 @@ class _SettingPageState extends State<SettingPage> {
                   ),
                   _buildGridItem(
                     icon: Icons.file_download_rounded,
-                    label: "Ekspor CSV",
+                    label: "Ekspor Laporan",
                     bgColor: Colors.green.shade50,
                     iconColor: Colors.green,
-                    onTap: _handleExport,
+                    onTap: _showExportOptionsSheet,
                   ),
                   _buildGridItem(
                     icon: Icons.info_outline_rounded,
