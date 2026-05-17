@@ -12,7 +12,7 @@ class SyncService {
   // false = Menggunakan penyimpanan lokal terisolasi SQLite (Simulasi Awan) - 100% jalan secara offline
   // true = Menghubungkan secara nyata ke server REST API Laravel Anda di internet
   final bool useRealServer = true;
-  final String laravelBaseUrl = "http://10.0.2.2:8000/api"; // IP Loopback agar Android Emulator bisa terhubung ke localhost Laravel Laptop Anda
+  final String laravelBaseUrl = "https://danakularavel-production.up.railway.app/api";
 
   /// =========================================================================
   /// 🔑 BAGIAN 1: OTENTIKASI & MANAJEMEN AKUN
