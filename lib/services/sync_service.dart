@@ -71,7 +71,10 @@ class SyncService {
           body: {'email': email, 'password': password},
         );
         if (response.statusCode == 201 || response.statusCode == 200) {
+          final responseData = jsonDecode(response.body);
+          final token = responseData['token'];
           await DatabaseHelper.instance.saveSetting('logged_in_user', email);
+          await DatabaseHelper.instance.saveSetting('auth_token', token);
           return true;
         }
         return false;
