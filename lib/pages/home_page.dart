@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../data/app_data.dart';
 import '../data/database_helper.dart';
 import 'transaction_input_page.dart';
+import 'manage_wallet_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,12 +22,14 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadTransaksi();
+    _loadData();
   }
 
-  Future<void> _loadTransaksi() async {
+  Future<void> _loadData() async {
     final allTransaksi = await DatabaseHelper.instance.fetchTransaksi();
+    final allWallets = await DatabaseHelper.instance.fetchWallets();
     setState(() {
+      AppData.wallets = allWallets;
       transaksiBulanIni = allTransaksi.where((t) {
         return t.tanggal.month == selectedDate.month && t.tanggal.year == selectedDate.year;
       }).toList();
@@ -36,14 +39,14 @@ class _HomePageState extends State<HomePage> {
   void _nextMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month + 1, 1);
-      _loadTransaksi();
+      _loadData();
     });
   }
 
   void _prevMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month - 1, 1);
-      _loadTransaksi();
+      _loadData();
     });
   }
 
@@ -67,6 +70,76 @@ class _HomePageState extends State<HomePage> {
       case 'hiburan': return Colors.purple;
       default: return Colors.grey;
     }
+  }
+
+  void _showSwitchBookDialog() async {
+    final books = await DatabaseHelper.instance.fetchBooks();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            const Text("Pilih Buku", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            ...books.map((b) => ListTile(
+              leading: const Icon(Icons.book, color: Colors.pink),
+              title: Text(b.nama, style: TextStyle(fontWeight: AppData.activeBookId == b.id ? FontWeight.bold : FontWeight.normal)),
+              trailing: AppData.activeBookId == b.id ? const Icon(Icons.check_circle, color: Colors.green) : null,
+              onTap: () {
+                setState(() {
+                  AppData.activeBookId = b.id!;
+                  AppData.activeBookName = b.nama;
+                });
+                _loadData();
+                Navigator.pop(context);
+              },
+            )),
+            const SizedBox(height: 20),
+          ],
+        );
+      }
+    );
+  }
+
+  void _createNewBook() {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Buku Baru"),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(hintText: "Nama Buku (misal: Tabungan Elga)"),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+          TextButton(
+            onPressed: () async {
+              if (nameController.text.trim().isNotEmpty) {
+                final newId = await DatabaseHelper.instance.insertBook(nameController.text.trim());
+                setState(() {
+                  AppData.activeBookId = newId;
+                  AppData.activeBookName = nameController.text.trim();
+                });
+                // Initialize default empty wallet for new book
+                await DatabaseHelper.instance.saveWallets([
+                  Wallet(nama: "Utama", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance_wallet)
+                ]);
+                _loadData();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Buat", style: TextStyle(color: Colors.pink)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -134,12 +207,25 @@ class _HomePageState extends State<HomePage> {
                       // Title
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                        child: Text(
-                          "catatan mada",
-                          style: TextStyle(
-                            color: Colors.white, 
-                            fontSize: isTablet ? 40 : 32, 
-                            fontWeight: FontWeight.bold
+                        child: InkWell(
+                          onTap: _showSwitchBookDialog,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  AppData.activeBookName,
+                                  style: TextStyle(
+                                    color: Colors.white, 
+                                    fontSize: isTablet ? 40 : 32, 
+                                    fontWeight: FontWeight.bold
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_drop_down, color: Colors.white, size: 30),
+                            ],
                           ),
                         ),
                       ),
@@ -149,9 +235,9 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         child: Row(
                           children: [
-                            _topActionItem(Icons.person_pin_outlined, "catatan ...", true),
+                            _topActionItem(Icons.person_pin_outlined, AppData.activeBookName.split(' ').first, true),
                             const SizedBox(width: 25),
-                            _topActionItem(Icons.add, "Baru Buku", false),
+                            _topActionItem(Icons.add, "Baru Buku", false, onTap: _createNewBook),
                           ],
                         ),
                       ),
@@ -216,24 +302,27 @@ class _HomePageState extends State<HomePage> {
   }
 
 
-  Widget _topActionItem(IconData icon, String label, bool isSelected) {
+  Widget _topActionItem(IconData icon, String label, bool isSelected, {VoidCallback? onTap}) {
     return LayoutBuilder(
       builder: (context, constraints) {
         double size = MediaQuery.of(context).size.width > 600 ? 80 : 65;
-        return Column(
-          children: [
-            Container(
-              width: size, height: size,
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.white.withAlpha(80) : Colors.transparent,
-                border: isSelected ? null : Border.all(color: Colors.white.withAlpha(150), width: 1.5),
-                borderRadius: BorderRadius.circular(size * 0.3),
+        return GestureDetector(
+          onTap: onTap,
+          child: Column(
+            children: [
+              Container(
+                width: size, height: size,
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white.withAlpha(80) : Colors.transparent,
+                  border: isSelected ? null : Border.all(color: Colors.white.withAlpha(150), width: 1.5),
+                  borderRadius: BorderRadius.circular(size * 0.3),
+                ),
+                child: Icon(icon, color: isSelected ? Colors.white : Colors.tealAccent, size: size * 0.45),
               ),
-              child: Icon(icon, color: isSelected ? Colors.white : Colors.tealAccent, size: size * 0.45),
-            ),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-          ],
+              const SizedBox(height: 8),
+              Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
         );
       }
     );
@@ -391,7 +480,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                               );
-                              if (result == true) _loadTransaksi();
+                              if (result == true) _loadData();
                             },
                           ),
                           ListTile(
@@ -410,7 +499,7 @@ class _HomePageState extends State<HomePage> {
                                       onPressed: () async {
                                         Navigator.pop(context);
                                         await DatabaseHelper.instance.deleteTransaksi(t);
-                                        _loadTransaksi();
+                                        _loadData();
                                       },
                                       child: const Text("Hapus", style: TextStyle(color: Colors.red)),
                                     ),

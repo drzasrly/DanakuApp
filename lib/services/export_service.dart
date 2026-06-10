@@ -5,6 +5,7 @@ import 'package:excel/excel.dart' as ex;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../data/database_helper.dart';
 import '../data/app_data.dart';
 
@@ -71,6 +72,7 @@ class ExportService {
 
   /// 2. Ekspor Data Transaksi ke Excel (.xlsx) dengan Header Rapi
   static Future<String> exportTransaksiToExcel() async {
+    await initializeDateFormatting('id', null);
     final List<Transaksi> listTransaksi = await DatabaseHelper.instance.fetchTransaksi();
 
     // Hitung Ringkasan
@@ -149,6 +151,7 @@ class ExportService {
 
   /// 3. Ekspor Data Transaksi ke PDF (.pdf) Premium dengan Banner & KPI Card
   static Future<String> exportTransaksiToPDF() async {
+    await initializeDateFormatting('id', null);
     final List<Transaksi> listTransaksi = await DatabaseHelper.instance.fetchTransaksi();
 
     // Hitung Ringkasan untuk KPI

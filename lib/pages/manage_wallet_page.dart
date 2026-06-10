@@ -152,6 +152,7 @@ class AddWalletTypePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final types = [
       {"label": "Tunai", "icon": Icons.money, "desc": null},
+      {"label": "Tabungan", "icon": Icons.savings, "desc": "Rekening bank atau celengan"},
       {"label": "Kartu Deposit", "icon": Icons.credit_card, "desc": null},
       {"label": "Kartu Kredit", "icon": Icons.credit_card, "desc": null},
       {"label": "Akun virtual", "icon": Icons.currency_bitcoin, "desc": "PayPal, Mata Uang Digital, dan Kartu Isi Ulang"},
@@ -214,6 +215,7 @@ class _CreateWalletDetailPageState extends State<CreateWalletDetailPage> {
       _selectedIcon = widget.walletToEdit!.icon;
     } else {
       if (widget.type == "Tunai") _selectedIcon = Icons.money;
+      if (widget.type == "Tabungan") _selectedIcon = Icons.savings;
       if (widget.type == "Akun virtual") _selectedIcon = Icons.account_balance_wallet;
     }
   }

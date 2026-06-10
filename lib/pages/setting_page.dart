@@ -776,57 +776,41 @@ class _SettingPageState extends State<SettingPage> {
                   _buildGridItem(
                     icon: Icons.mark_email_unread_rounded,
                     label: "Kotak Pesan",
-                    bgColor: Colors.pink.shade50,
-                    iconColor: Colors.pink,
                     onTap: _showInboxDialog,
                   ),
                   _buildGridItem(
                     icon: Icons.category_rounded,
                     label: "Kategori",
-                    bgColor: Colors.purple.shade50,
-                    iconColor: Colors.purple,
                     onTap: _showCategorySelection,
                   ),
                   _buildGridItem(
                     icon: Icons.account_balance_wallet_rounded,
                     label: "Dompet",
-                    bgColor: Colors.blue.shade50,
-                    iconColor: Colors.blue,
                     onTap: _navigateToDompet,
                   ),
                   _buildGridItem(
                     icon: Icons.currency_exchange_rounded,
                     label: "Tukar Kurs",
-                    bgColor: Colors.amber.shade50,
-                    iconColor: Colors.amber.shade700,
                     onTap: _showExchangeDialog,
                   ),
                   _buildGridItem(
                     icon: Icons.track_changes_rounded,
                     label: "Anggaran",
-                    bgColor: Colors.teal.shade50,
-                    iconColor: Colors.teal,
                     onTap: _showBudgetDialog,
                   ),
                   _buildGridItem(
                     icon: Icons.notifications_active_rounded,
                     label: "Pengingat",
-                    bgColor: Colors.indigo.shade50,
-                    iconColor: Colors.indigo,
                     onTap: _showReminderDialog,
                   ),
                   _buildGridItem(
                     icon: Icons.file_download_rounded,
                     label: "Ekspor Laporan",
-                    bgColor: Colors.green.shade50,
-                    iconColor: Colors.green,
                     onTap: _showExportOptionsSheet,
                   ),
                   _buildGridItem(
                     icon: Icons.info_outline_rounded,
                     label: "Tentang",
-                    bgColor: Colors.blueGrey.shade50,
-                    iconColor: Colors.blueGrey,
                     onTap: _showAbout,
                   ),
                 ],
@@ -867,10 +851,10 @@ class _SettingPageState extends State<SettingPage> {
   Widget _buildGridItem({
     required IconData icon,
     required String label,
-    required Color bgColor,
-    required Color iconColor,
     required VoidCallback onTap,
   }) {
+    Color bgColor = Colors.pink.shade50;
+    Color iconColor = Colors.pink;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
@@ -967,15 +951,15 @@ class _SettingPageState extends State<SettingPage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isOffline
-              ? [const Color(0xFF5A67D8), const Color(0xFF434190)] // Indigo-Purple Cloud
-              : [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)], // Cloud-Blue Active
+              ? [Colors.pink.shade300, Colors.pink.shade600] // Pink Offline
+              : [Colors.pink.shade400, Colors.pink.shade800], // Pink Active
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: (isOffline ? const Color(0xFF5A67D8) : const Color(0xFF3B82F6)).withAlpha(80),
+            color: (isOffline ? Colors.pink.shade300 : Colors.pink.shade400).withAlpha(80),
             blurRadius: 15,
             offset: const Offset(0, 8),
           )

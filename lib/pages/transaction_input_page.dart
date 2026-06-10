@@ -239,6 +239,7 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
     double converted = selectedCurrency == "USD" ? (parsedAmount ?? 0) * usdToIdr : (parsedAmount ?? 0);
     final screenSize = MediaQuery.of(context).size;
     final isShortScreen = screenSize.height < 700;
+    final availableHeight = screenSize.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -246,9 +247,12 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 600),
-            child: Column(
-              children: [
-                // Top Navigation Bar
+            child: SingleChildScrollView(
+              child: SizedBox(
+                height: availableHeight,
+                child: Column(
+                  children: [
+                      // Top Navigation Bar
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
                   child: Row(
@@ -404,7 +408,9 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
                     ],
                   ),
                 )
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
