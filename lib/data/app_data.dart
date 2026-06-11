@@ -1,5 +1,26 @@
 import 'package:flutter/material.dart';
 
+class Book {
+  int? id;
+  String nama;
+
+  Book({this.id, required this.nama});
+
+  factory Book.fromMap(Map<String, dynamic> map) {
+    return Book(
+      id: map['id'],
+      nama: map['nama'],
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'nama': nama,
+    };
+  }
+}
+
 class Wallet {
   String nama;
   int saldo;
@@ -80,20 +101,18 @@ class TransactionCategory {
     return TransactionCategory(
       id: map['id'],
       nama: map['nama'],
-      icon: map['icon_code'] != null ? IconData(map['icon_code'], fontFamily: 'MaterialIcons') : null,
+      icon: map['icon_code'] != null ? IconMapper.getIcon(map['icon_code']) : null,
       imagePath: map['image_path'],
     );
   }
 }
 
 class AppData {
+  static int activeBookId = 1;
+  static String activeBookName = "catatan mada";
+
   static List<Wallet> wallets = [
-    Wallet(nama: "paylatter", saldo: 0, jenis: "Hutang", icon: Icons.credit_card),
-    Wallet(nama: "ganti uang beli hp", saldo: 0, jenis: "Hutang", icon: Icons.phone_android),
-    Wallet(nama: "TapCash Mark", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance),
-    Wallet(nama: "isi dompet", saldo: 200000, jenis: "Akun Virtual", icon: Icons.money),
-    Wallet(nama: "Shopeepay", saldo: 0, jenis: "Akun Virtual", icon: Icons.wallet),
-    Wallet(nama: "bca", saldo: 0, jenis: "Akun Virtual", icon: Icons.credit_card),
+    Wallet(nama: "Utama", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance_wallet),
   ];
 
   static List<Transaksi> transaksi = [];
@@ -120,3 +139,60 @@ class AppData {
     TransactionCategory(nama: "Lainnya", icon: Icons.auto_graph_rounded),
   ];
 }
+
+class IconMapper {
+  static final Map<int, IconData> _iconMap = {
+    Icons.money.codePoint: Icons.money,
+    Icons.credit_card.codePoint: Icons.credit_card,
+    Icons.currency_bitcoin.codePoint: Icons.currency_bitcoin,
+    Icons.shopping_bag.codePoint: Icons.shopping_bag,
+    Icons.account_balance.codePoint: Icons.account_balance,
+    Icons.wallet.codePoint: Icons.wallet,
+    Icons.savings.codePoint: Icons.savings,
+    Icons.phone_android.codePoint: Icons.phone_android,
+    Icons.local_atm.codePoint: Icons.local_atm,
+    Icons.payments.codePoint: Icons.payments,
+    Icons.currency_exchange.codePoint: Icons.currency_exchange,
+    Icons.account_balance_wallet.codePoint: Icons.account_balance_wallet,
+    Icons.card_membership.codePoint: Icons.card_membership,
+    Icons.storefront.codePoint: Icons.storefront,
+    Icons.stars.codePoint: Icons.stars,
+    Icons.security.codePoint: Icons.security,
+    Icons.volunteer_activism.codePoint: Icons.volunteer_activism,
+    Icons.qr_code_2.codePoint: Icons.qr_code_2,
+    Icons.nfc.codePoint: Icons.nfc,
+    Icons.apple.codePoint: Icons.apple,
+    Icons.facebook.codePoint: Icons.facebook,
+    Icons.shopping_cart.codePoint: Icons.shopping_cart,
+    Icons.sell.codePoint: Icons.sell,
+    Icons.receipt_long.codePoint: Icons.receipt_long,
+    Icons.point_of_sale.codePoint: Icons.point_of_sale,
+    Icons.account_box.codePoint: Icons.account_box,
+    Icons.contactless.codePoint: Icons.contactless,
+    Icons.token.codePoint: Icons.token,
+    Icons.assured_workload.codePoint: Icons.assured_workload,
+    
+    Icons.local_parking_rounded.codePoint: Icons.local_parking_rounded,
+    Icons.coffee_rounded.codePoint: Icons.coffee_rounded,
+    Icons.auto_awesome_rounded.codePoint: Icons.auto_awesome_rounded,
+    Icons.shopping_bag_rounded.codePoint: Icons.shopping_bag_rounded,
+    Icons.account_balance_rounded.codePoint: Icons.account_balance_rounded,
+    Icons.card_giftcard_rounded.codePoint: Icons.card_giftcard_rounded,
+    Icons.tire_repair_rounded.codePoint: Icons.tire_repair_rounded,
+    Icons.traffic_rounded.codePoint: Icons.traffic_rounded,
+    Icons.phone_android_rounded.codePoint: Icons.phone_android_rounded,
+    Icons.account_balance_wallet_rounded.codePoint: Icons.account_balance_wallet_rounded,
+    Icons.star_rounded.codePoint: Icons.star_rounded,
+    Icons.auto_graph_rounded.codePoint: Icons.auto_graph_rounded,
+    Icons.credit_card_rounded.codePoint: Icons.credit_card_rounded,
+    Icons.category.codePoint: Icons.category,
+    
+    Icons.handshake.codePoint: Icons.handshake,
+    Icons.description.codePoint: Icons.description,
+  };
+
+  static IconData getIcon(int codePoint) {
+    return _iconMap[codePoint] ?? Icons.category;
+  }
+}
+

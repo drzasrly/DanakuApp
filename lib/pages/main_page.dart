@@ -15,19 +15,27 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int currentIndex = 0;
+  final GlobalKey<HomePageState> _homeKey = GlobalKey();
 
-
-  final List<Widget> pages = [
-    const HomePage(),
-    const WalletPage(),
-    const ReportPage(),
-    const SettingPage(),
-  ];
+  Widget _getPage(int index) {
+    switch (index) {
+      case 0:
+        return HomePage(key: _homeKey);
+      case 1:
+        return const WalletPage();
+      case 2:
+        return const ReportPage();
+      case 3:
+        return const SettingPage();
+      default:
+        return const HomePage();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: pages[currentIndex],
+      body: _getPage(currentIndex),
       floatingActionButton: currentIndex == 0 ? FloatingActionButton(
         backgroundColor: Colors.white,
         onPressed: () async {
@@ -54,12 +62,13 @@ class _MainPageState extends State<MainPage> {
 
           if (result != null) {
             if (!mounted) return;
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => TransactionInputPage(initialJenis: result),
               ),
             );
+            _homeKey.currentState?.loadData();
           }
         },
         child: const Icon(Icons.add, color: Colors.pink),

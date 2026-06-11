@@ -7,8 +7,9 @@ import '../services/exchange_service.dart';
 
 class TransactionInputPage extends StatefulWidget {
   final String initialJenis;
+  final Transaksi? initialTransaksi;
 
-  const TransactionInputPage({super.key, required this.initialJenis});
+  const TransactionInputPage({super.key, required this.initialJenis, this.initialTransaksi});
 
   @override
   State<TransactionInputPage> createState() => _TransactionInputPageState();
@@ -30,9 +31,19 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
   @override
   void initState() {
     super.initState();
-    jenis = widget.initialJenis;
-    if (AppData.wallets.isNotEmpty) {
-      selectedWallet = AppData.wallets.first;
+    if (widget.initialTransaksi != null) {
+      final t = widget.initialTransaksi!;
+      jenis = t.jenis.toLowerCase() == 'masuk' || t.jenis.toLowerCase() == 'pemasukan' ? 'masuk' : 'keluar';
+      nominal = t.jumlah.toString();
+      keteranganController.text = t.keterangan;
+      selectedDate = t.tanggal;
+      selectedWallet = AppData.wallets.firstWhere((w) => w.nama == t.walletNama, orElse: () => AppData.wallets.first);
+      // Category will be selected after _loadCategories
+    } else {
+      jenis = widget.initialJenis;
+      if (AppData.wallets.isNotEmpty) {
+        selectedWallet = AppData.wallets.first;
+      }
     }
     _loadCategories();
     _loadLastRate();
@@ -91,7 +102,12 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
     final list = await DatabaseHelper.instance.fetchCategories(jenis);
     setState(() {
       categories = list;
-      if (categories.isNotEmpty) {
+      if (widget.initialTransaksi != null) {
+        selectedCategory = categories.firstWhere(
+          (c) => c.nama == widget.initialTransaksi!.kategori,
+          orElse: () => categories.isNotEmpty ? categories.first : TransactionCategory(nama: "Unknown", icon: Icons.category),
+        );
+      } else if (categories.isNotEmpty) {
         selectedCategory = categories.first;
       } else {
         selectedCategory = null;
@@ -195,6 +211,7 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
     }
 
     final newTransaksi = Transaksi(
+      id: widget.initialTransaksi?.id,
       keterangan: keteranganController.text.isEmpty ? selectedCategory!.nama : keteranganController.text,
       jumlah: jumlah,
       jenis: jenis,
@@ -204,7 +221,12 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
     );
 
     try {
-      await DatabaseHelper.instance.insertTransaksi(newTransaksi);
+      if (widget.initialTransaksi != null) {
+        await DatabaseHelper.instance.updateTransaksi(widget.initialTransaksi!, newTransaksi);
+      } else {
+        await DatabaseHelper.instance.insertTransaksi(newTransaksi);
+      }
+      
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Gagal menyimpan ke database!")));
@@ -215,156 +237,182 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
   Widget build(BuildContext context) {
     double? parsedAmount = double.tryParse(nominal);
     double converted = selectedCurrency == "USD" ? (parsedAmount ?? 0) * usdToIdr : (parsedAmount ?? 0);
+    final screenSize = MediaQuery.of(context).size;
+    final isShortScreen = screenSize.height < 700;
+    final availableHeight = screenSize.height - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            // Top Navigation Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.close, color: Colors.pink, size: 28),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  
-                  // Toggle Switch
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.pink.shade50,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildTypeToggle("keluar", "Pengeluaran", Icons.arrow_circle_up),
-                        _buildTypeToggle("masuk", "Pemasukan", Icons.arrow_circle_down),
-                      ],
-                    ),
-                  ),
-                  
-                  IconButton(
-                    icon: const Icon(Icons.check, color: Colors.pink, size: 28),
-                    onPressed: _saveTransaction,
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // Category Grid
-            Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  childAspectRatio: 0.8,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 15,
-                ),
-                itemCount: categories.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == categories.length) {
-                    return GestureDetector(
-                      onTap: () async {
-                         await Navigator.push(context, MaterialPageRoute(builder: (context) => ManageCategoryPage(jenis: jenis)));
-                         _loadCategories();
-                      },
-                      child: _buildCategoryItem(null, "Manage", Icons.settings_rounded, false, null),
-                    );
-                  }
-
-                  final cat = categories[index];
-                  return GestureDetector(
-                    onTap: () => setState(() => selectedCategory = cat),
-                    child: _buildCategoryItem(cat.imagePath, cat.nama, cat.icon, selectedCategory == cat, null),
-                  );
-                },
-              ),
-            ),
-
-            // Numpad Area
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.pink.shade400,
-                borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-              ),
-              padding: const EdgeInsets.fromLTRB(15, 20, 15, 10),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Input Bar
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
-                    child: Row(
-                      children: [
-                        Icon(selectedWallet?.icon ?? Icons.wallet, color: Colors.green),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: SingleChildScrollView(
+              child: SizedBox(
+                height: availableHeight,
+                child: Column(
+                  children: [
+                      // Top Navigation Bar
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.pink, size: 26),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      
+                      // Toggle Switch
+                      Flexible(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.pink.shade50,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          padding: const EdgeInsets.all(2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(selectedWallet?.nama ?? "Pilih Dompet", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                              TextField(
-                                controller: keteranganController,
-                                decoration: const InputDecoration(hintText: "Nota", border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
-                                style: const TextStyle(fontSize: 16),
-                              ),
+                              Flexible(child: _buildTypeToggle("keluar", "Keluar", Icons.arrow_circle_up)),
+                              Flexible(child: _buildTypeToggle("masuk", "Masuk", Icons.arrow_circle_down)),
                             ],
                           ),
                         ),
-                        
-                        // Currency Selector & Nominal
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
+                      ),
+                      
+                      IconButton(
+                        icon: const Icon(Icons.check, color: Colors.pink, size: 26),
+                        onPressed: _saveTransaction,
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (!isShortScreen) const SizedBox(height: 10),
+
+                // Category Grid - Adaptive columns
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      int crossAxisCount = (constraints.maxWidth / 80).floor().clamp(3, 8);
+                      return GridView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          childAspectRatio: 0.8,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 15,
+                        ),
+                        itemCount: categories.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == categories.length) {
+                            return GestureDetector(
+                              onTap: () async {
+                                 await Navigator.push(context, MaterialPageRoute(builder: (context) => ManageCategoryPage(jenis: jenis)));
+                                 _loadCategories();
+                              },
+                              child: _buildCategoryItem(null, "Manage", Icons.settings_rounded, false, null),
+                            );
+                          }
+
+                          final cat = categories[index];
+                          return GestureDetector(
+                            onTap: () => setState(() => selectedCategory = cat),
+                            child: _buildCategoryItem(cat.imagePath, cat.nama, cat.icon, selectedCategory == cat, null),
+                          );
+                        },
+                      );
+                    }
+                  ),
+                ),
+
+                // Numpad Area
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade400,
+                    borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                  ),
+                  padding: EdgeInsets.fromLTRB(15, isShortScreen ? 10 : 20, 15, 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Input Bar
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                        child: Row(
                           children: [
-                            Row(
-                              children: [
-                                if (selectedCurrency == "USD") ...[
-                                  if (isLoadingRate) const SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 1)),
-                                  Text(" (1\$ = ${usdToIdr.toInt()}) ", style: const TextStyle(fontSize: 9, color: Colors.grey)),
-                                  IconButton(
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    icon: const Icon(Icons.refresh, size: 12, color: Colors.blue),
-                                    onPressed: _fetchRate,
+                            Icon(selectedWallet?.icon ?? Icons.wallet, color: Colors.green, size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(selectedWallet?.nama ?? "Pilih Dompet", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                  TextField(
+                                    controller: keteranganController,
+                                    decoration: const InputDecoration(hintText: "Nota", border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero),
+                                    style: const TextStyle(fontSize: 15),
                                   ),
                                 ],
-                                const SizedBox(width: 5),
-                                GestureDetector(
-                                  onTap: () => setState(() => selectedCurrency = selectedCurrency == "IDR" ? "USD" : "IDR"),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(5)),
-                                    child: Text(selectedCurrency, style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold, fontSize: 10)),
+                              ),
+                            ),
+                            
+                            // Currency Selector & Nominal
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (selectedCurrency == "USD") ...[
+                                      if (isLoadingRate) const SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1)),
+                                      Text(" (1\$ = ${usdToIdr.toInt()}) ", style: const TextStyle(fontSize: 8, color: Colors.grey)),
+                                      IconButton(
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        icon: const Icon(Icons.refresh, size: 10, color: Colors.blue),
+                                        onPressed: _fetchRate,
+                                      ),
+                                    ],
+                                    const SizedBox(width: 5),
+                                    GestureDetector(
+                                      onTap: () => setState(() => selectedCurrency = selectedCurrency == "IDR" ? "USD" : "IDR"),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(5)),
+                                        child: Text(selectedCurrency, style: const TextStyle(color: Colors.pink, fontWeight: FontWeight.bold, fontSize: 9)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    nominal,
+                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                   ),
                                 ),
+                                if (selectedCurrency == "USD")
+                                  Text("≈ Rp${NumberFormat.decimalPattern('id').format(converted.toInt())}", style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
                               ],
-                            ),
-                            Text(
-                              nominal,
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                            ),
-                            if (selectedCurrency == "USD")
-                              Text("≈ Rp${NumberFormat.decimalPattern('id').format(converted.toInt())}", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+                            )
                           ],
-                        )
-                      ],
-                    ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildNumpad(),
+                    ],
                   ),
-                  const SizedBox(height: 15),
-                  _buildNumpad(),
-                ],
+                )
+                  ],
+                ),
               ),
-            )
-          ],
+            ),
+          ),
         ),
       ),
     );
@@ -380,13 +428,27 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
         });
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         decoration: BoxDecoration(color: isActive ? Colors.pink : Colors.transparent, borderRadius: BorderRadius.circular(20)),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: isActive ? Colors.white : Colors.grey),
-            const SizedBox(width: 5),
-            Text(label, style: TextStyle(color: isActive ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
+            Icon(icon, size: 14, color: isActive ? Colors.white : Colors.grey),
+            const SizedBox(width: 4),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.grey,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -394,23 +456,28 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
   }
 
   Widget _buildCategoryItem(String? imagePath, String nama, IconData? icon, bool isSelected, Color? color) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.pink.shade50 : Colors.transparent,
-            border: Border.all(color: isSelected ? Colors.pink : Colors.transparent, width: 2),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: imagePath != null
-              ? Image.asset(imagePath, width: 28, height: 28)
-              : Icon(icon, color: isSelected ? Colors.pink : Colors.grey.shade600, size: 28),
-        ),
-        const SizedBox(height: 5),
-        Text(nama, style: TextStyle(color: isSelected ? Colors.pink : Colors.black87, fontSize: 11, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), maxLines: 1, overflow: TextOverflow.ellipsis),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        double iconSize = constraints.maxWidth * 0.4;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.pink.shade50 : Colors.transparent,
+                border: Border.all(color: isSelected ? Colors.pink : Colors.transparent, width: 2),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: imagePath != null
+                  ? Image.asset(imagePath, width: iconSize, height: iconSize)
+                  : Icon(icon, color: isSelected ? Colors.pink : Colors.grey.shade600, size: iconSize),
+            ),
+            const SizedBox(height: 4),
+            Text(nama, style: TextStyle(color: isSelected ? Colors.pink : Colors.black87, fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ],
+        );
+      }
     );
   }
 
@@ -452,8 +519,9 @@ class _TransactionInputPageState extends State<TransactionInputPage> {
       padding: const EdgeInsets.all(4.0),
       child: InkWell(
         onTap: () {
-          if (isDate) _selectDateTime();
-          else if (label == "" && icon == Icons.account_balance_wallet) _showWalletPicker();
+          if (isDate) {
+            _selectDateTime();
+          } else if (label == "" && icon == Icons.account_balance_wallet) _showWalletPicker();
           else if (label == "" && (icon == Icons.check_circle_outline || icon == Icons.check_box)) _saveTransaction();
           else if (label == "DEL" || icon == Icons.backspace) _onNumpadTap("DEL");
           else if (label.isNotEmpty) _onNumpadTap(label);

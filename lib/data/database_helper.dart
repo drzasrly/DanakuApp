@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'app_data.dart';
 import 'package:flutter/material.dart';
+import '../services/sync_service.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -18,13 +19,21 @@ class DatabaseHelper {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(path, version: 2, onCreate: _createDB, onUpgrade: _upgradeDB);
   }
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
+    CREATE TABLE books (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nama TEXT
+    )
+    ''');
+
+    await db.execute('''
     CREATE TABLE transaksi (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER DEFAULT 1,
       keterangan TEXT,
       jumlah INTEGER,
       jenis TEXT,
@@ -37,6 +46,7 @@ class DatabaseHelper {
     await db.execute('''
     CREATE TABLE wallets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      book_id INTEGER DEFAULT 1,
       nama TEXT,
       saldo INTEGER,
       jenis TEXT,
@@ -61,9 +71,13 @@ class DatabaseHelper {
     )
     ''');
 
-    // Insert default wallets from AppData
+    // Insert default book
+    await db.insert('books', {'nama': 'catatan mada'});
+
+    // Insert default wallets from AppData (now only contains "Utama")
     for (var w in AppData.wallets) {
       await db.insert('wallets', {
+        'book_id': 1,
         'nama': w.nama, 
         'saldo': w.saldo, 
         'jenis': w.jenis, 
@@ -80,6 +94,40 @@ class DatabaseHelper {
     }
   }
 
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add books table
+      await db.execute('''
+      CREATE TABLE books (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama TEXT
+      )
+      ''');
+      // Insert default book
+      await db.insert('books', {'nama': 'catatan mada'});
+
+      // Add book_id column to existing tables
+      await db.execute('ALTER TABLE transaksi ADD COLUMN book_id INTEGER DEFAULT 1');
+      await db.execute('ALTER TABLE wallets ADD COLUMN book_id INTEGER DEFAULT 1');
+      
+      // Update existing records to use book_id = 1
+      await db.update('transaksi', {'book_id': 1});
+      await db.update('wallets', {'book_id': 1});
+    }
+  }
+
+  // --- FUNGSI BOOKS ---
+  Future<List<Book>> fetchBooks() async {
+    final db = await database;
+    final result = await db.query('books');
+    return result.map((json) => Book.fromMap(json)).toList();
+  }
+
+  Future<int> insertBook(String nama) async {
+    final db = await database;
+    return await db.insert('books', {'nama': nama});
+  }
+
   // Categories functions
   Future<List<TransactionCategory>> fetchCategories(String jenis) async {
     final db = await database;
@@ -90,11 +138,15 @@ class DatabaseHelper {
   Future<void> insertCategory(TransactionCategory cat, String jenis) async {
     final db = await database;
     await db.insert('categories', cat.toMap(jenis));
+    // Trigger pencadangan otomatis senyap di background
+    SyncService.instance.triggerAutoBackup();
   }
 
   Future<void> deleteCategory(int id) async {
     final db = await database;
     await db.delete('categories', where: 'id = ?', whereArgs: [id]);
+    // Trigger pencadangan otomatis senyap di background
+    SyncService.instance.triggerAutoBackup();
   }
 
   // --- FUNGSI SETTINGS (UNTUK OFFLINE KURS) ---
@@ -121,19 +173,54 @@ class DatabaseHelper {
     return 15800.0;
   }
 
+  // --- FUNGSI PENGATURAN GENERIK (UNTUK AUTH & BACKUP SIMULASI) ---
+  Future<void> saveSetting(String key, String value) async {
+    final db = await database;
+    await db.insert(
+      'settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> getSetting(String key) async {
+    final db = await database;
+    final maps = await db.query(
+      'settings',
+      where: 'key = ?',
+      whereArgs: [key]
+    );
+
+    if (maps.isNotEmpty) {
+      return maps.first['value'] as String?;
+    }
+    return null;
+  }
+
+  Future<void> deleteSetting(String key) async {
+    final db = await database;
+    await db.delete(
+      'settings',
+      where: 'key = ?',
+      whereArgs: [key]
+    );
+  }
+
   // --- FUNGSI TRANSAKSI ---
   Future<void> insertTransaksi(Transaksi t) async {
     final db = await database;
-    await db.insert('transaksi', t.toMap());
+    Map<String, dynamic> tMap = t.toMap();
+    tMap['book_id'] = AppData.activeBookId;
+    await db.insert('transaksi', tMap);
 
     final List<Map<String, dynamic>> walletMaps = await db.query(
       'wallets',
-      where: 'nama = ?',
-      whereArgs: [t.walletNama],
+      where: 'nama = ? AND book_id = ?',
+      whereArgs: [t.walletNama, AppData.activeBookId],
     );
 
     if (walletMaps.isNotEmpty) {
-      int saldoSekarang = walletMaps.first['saldo'];
+      int saldoSekarang = walletMaps.first['saldo'] as int;
       int saldoBaru;
       if (t.jenis.toLowerCase() == 'keluar' || t.jenis.toLowerCase() == 'pengeluaran') {
         saldoBaru = saldoSekarang - t.jumlah;
@@ -142,19 +229,23 @@ class DatabaseHelper {
       }
       await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ?', whereArgs: [t.walletNama]);
     }
+
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
   }
 
   Future<List<Transaksi>> fetchTransaksi() async {
     final db = await database;
-    final result = await db.query('transaksi', orderBy: 'tanggal DESC');
+    final result = await db.query('transaksi', where: 'book_id = ?', whereArgs: [AppData.activeBookId], orderBy: 'tanggal DESC');
     return result.map((json) => Transaksi.fromMap(json)).toList();
   }
 
   Future<void> saveWallets(List<Wallet> wallets) async {
     final db = await database;
-    await db.delete('wallets');
+    await db.delete('wallets', where: 'book_id = ?', whereArgs: [AppData.activeBookId]);
     for (var w in wallets) {
       await db.insert('wallets', {
+        'book_id': AppData.activeBookId,
         'nama': w.nama, 
         'saldo': w.saldo, 
         'jenis': w.jenis, 
@@ -165,24 +256,106 @@ class DatabaseHelper {
 
   Future<List<Wallet>> fetchWallets() async {
     final db = await database;
-    final result = await db.query('wallets');
+    final result = await db.query('wallets', where: 'book_id = ?', whereArgs: [AppData.activeBookId]);
     return result.map((json) => Wallet(
       nama: json['nama'] as String, 
       saldo: json['saldo'] as int,
       jenis: json['jenis'] != null ? json['jenis'] as String : "Akun Virtual",
-      icon: json['icon_code'] != null ? IconData(json['icon_code'] as int, fontFamily: 'MaterialIcons') : Icons.account_balance_wallet
+      icon: json['icon_code'] != null ? IconMapper.getIcon(json['icon_code'] as int) : Icons.account_balance_wallet
     )).toList();
+  }
+
+  Future<void> deleteTransaksi(Transaksi t) async {
+    final db = await database;
+    
+    // Reverse the wallet balance
+    final List<Map<String, dynamic>> walletMaps = await db.query(
+      'wallets',
+      where: 'nama = ? AND book_id = ?',
+      whereArgs: [t.walletNama, AppData.activeBookId],
+    );
+
+    if (walletMaps.isNotEmpty) {
+      int saldoSekarang = walletMaps.first['saldo'] as int;
+      int saldoBaru;
+      if (t.jenis.toLowerCase() == 'keluar' || t.jenis.toLowerCase() == 'pengeluaran') {
+        saldoBaru = saldoSekarang + t.jumlah;
+      } else {
+        saldoBaru = saldoSekarang - t.jumlah;
+      }
+      await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ? AND book_id = ?', whereArgs: [t.walletNama, AppData.activeBookId]);
+    }
+
+    await db.delete('transaksi', where: 'id = ?', whereArgs: [t.id]);
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
+  }
+
+  Future<void> updateTransaksi(Transaksi oldT, Transaksi newT) async {
+    final db = await database;
+
+    // 1. Reverse old impact
+    final List<Map<String, dynamic>> oldWalletMaps = await db.query(
+      'wallets',
+      where: 'nama = ? AND book_id = ?',
+      whereArgs: [oldT.walletNama, AppData.activeBookId],
+    );
+
+    if (oldWalletMaps.isNotEmpty) {
+      int saldoSekarang = oldWalletMaps.first['saldo'] as int;
+      int reversedSaldo;
+      if (oldT.jenis.toLowerCase() == 'keluar' || oldT.jenis.toLowerCase() == 'pengeluaran') {
+        reversedSaldo = saldoSekarang + oldT.jumlah;
+      } else {
+        reversedSaldo = saldoSekarang - oldT.jumlah;
+      }
+      await db.update('wallets', {'saldo': reversedSaldo}, where: 'nama = ? AND book_id = ?', whereArgs: [oldT.walletNama, AppData.activeBookId]);
+    }
+
+    // 2. Apply new impact
+    final List<Map<String, dynamic>> newWalletMaps = await db.query(
+      'wallets',
+      where: 'nama = ? AND book_id = ?',
+      whereArgs: [newT.walletNama, AppData.activeBookId],
+    );
+
+    if (newWalletMaps.isNotEmpty) {
+      int saldoTarget;
+      if (oldT.walletNama == newT.walletNama) {
+        final updatedWallet = await db.query('wallets', where: 'nama = ? AND book_id = ?', whereArgs: [newT.walletNama, AppData.activeBookId]);
+        saldoTarget = updatedWallet.first['saldo'] as int;
+      } else {
+        saldoTarget = newWalletMaps.first['saldo'] as int;
+      }
+
+      int saldoBaru;
+      if (newT.jenis.toLowerCase() == 'keluar' || newT.jenis.toLowerCase() == 'pengeluaran') {
+        saldoBaru = saldoTarget - newT.jumlah;
+      } else {
+        saldoBaru = saldoTarget + newT.jumlah;
+      }
+      await db.update('wallets', {'saldo': saldoBaru}, where: 'nama = ? AND book_id = ?', whereArgs: [newT.walletNama, AppData.activeBookId]);
+    }
+
+    Map<String, dynamic> newTMap = newT.toMap();
+    newTMap['book_id'] = AppData.activeBookId;
+    await db.update('transaksi', newTMap, where: 'id = ?', whereArgs: [oldT.id]);
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
   }
 
   Future<void> resetData() async {
     final db = await database;
-    await db.delete('transaksi');
-    await db.delete('wallets');
+    await db.delete('transaksi', where: 'book_id = ?', whereArgs: [AppData.activeBookId]);
+    await db.delete('wallets', where: 'book_id = ?', whereArgs: [AppData.activeBookId]);
     await db.insert('wallets', {
+      'book_id': AppData.activeBookId,
       'nama': 'Utama',
       'saldo': 0,
       'jenis': 'Akun Virtual',
       'icon_code': Icons.account_balance_wallet.codePoint,
     });
+    // Trigger pencadangan otomatis senyap di background jika user login
+    SyncService.instance.triggerAutoBackup();
   }
 }
