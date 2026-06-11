@@ -15,12 +15,12 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int currentIndex = 0;
-
+  final GlobalKey<HomePageState> _homeKey = GlobalKey();
 
   Widget _getPage(int index) {
     switch (index) {
       case 0:
-        return const HomePage();
+        return HomePage(key: _homeKey);
       case 1:
         return const WalletPage();
       case 2:
@@ -62,12 +62,13 @@ class _MainPageState extends State<MainPage> {
 
           if (result != null) {
             if (!mounted) return;
-            Navigator.push(
+            await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => TransactionInputPage(initialJenis: result),
               ),
             );
+            _homeKey.currentState?.loadData();
           }
         },
         child: const Icon(Icons.add, color: Colors.pink),

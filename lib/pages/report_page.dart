@@ -14,9 +14,11 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage> {
   int _viewMode = 0; // 0: Pengeluaran, 1: Penghasilan, 2: Kategori, 3: Akun, 4: Tren/Aset
+  bool _isTrendMode = true; // true: Tren, false: Aset
   final String _groupBy = "Kategori"; // "Kategori" or "Akun"
   final DateTime _selectedMonth = DateTime.now();
   List<Transaksi> _transactions = [];
+  List<Wallet> _wallets = [];
 
   @override
   void initState() {
@@ -26,8 +28,10 @@ class _ReportPageState extends State<ReportPage> {
 
   Future<void> _loadData() async {
     final all = await DatabaseHelper.instance.fetchTransaksi();
+    final allWallets = await DatabaseHelper.instance.fetchWallets();
     setState(() {
       _transactions = all.where((t) => t.tanggal.month == _selectedMonth.month && t.tanggal.year == _selectedMonth.year).toList();
+      _wallets = allWallets;
     });
   }
 
@@ -173,6 +177,7 @@ class _ReportPageState extends State<ReportPage> {
 
     return Column(
       children: [
+        _buildAnalysisCard(grouped, total, isExpense),
         // Donut Chart
         SizedBox(
           height: chartSize + 120,
@@ -248,6 +253,7 @@ class _ReportPageState extends State<ReportPage> {
 
     return Column(
       children: [
+        if (_isTrendMode) _buildTrendAnalysisCard(),
         // Line Chart (Real Trend)
         Container(
           margin: const EdgeInsets.all(15),
@@ -266,58 +272,204 @@ class _ReportPageState extends State<ReportPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                   _buildSmallTag("Tren", true),
+                   _buildSmallTag("Tren", _isTrendMode, onTap: () => setState(() => _isTrendMode = true)),
                    const SizedBox(width: 10),
-                   _buildSmallTag("Aset", false),
+                   _buildSmallTag("Aset", !_isTrendMode, onTap: () => setState(() => _isTrendMode = false)),
                 ],
               ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildLegendDot(Colors.green, "Masuk"),
-                  const SizedBox(width: 20),
-                  _buildLegendDot(Colors.orange, "Keluar"),
-                ],
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 20, bottom: 10),
-                  child: CustomPaint(
-                    size: Size.infinite,
-                    painter: TrendChartPainter(transactions: _transactions),
+              if (_isTrendMode) ...[
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildLegendDot(Colors.green, "Masuk"),
+                    const SizedBox(width: 20),
+                    _buildLegendDot(Colors.orange, "Keluar"),
+                  ],
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 20, bottom: 10),
+                    child: CustomPaint(
+                      size: Size.infinite,
+                      painter: TrendChartPainter(transactions: _transactions),
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                const Spacer(),
+                const Icon(Icons.account_balance_wallet, color: Colors.white, size: 50),
+                const SizedBox(height: 10),
+                const Text("Total Aset", style: TextStyle(color: Colors.white, fontSize: 16)),
+                Text(
+                  "Rp${NumberFormat.decimalPattern('id').format(_wallets.fold(0, (sum, w) => sum + w.saldo))}",
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                ),
+                const Spacer(),
+              ]
             ],
           ),
         ),
         
-        // Table Data
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
-                child: const Row(
-                  children: [
-                    Expanded(child: Text("  Tgl", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                    Expanded(child: Text("Masuk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                    Expanded(child: Text("Keluar", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                    Expanded(child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
-                  ],
+        if (_isTrendMode)
+          // Table Data
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 15),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                  child: const Row(
+                    children: [
+                      Expanded(child: Text("  Tgl", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(child: Text("Masuk", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(child: Text("Keluar", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                      Expanded(child: Text("Total", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+                    ],
+                  ),
                 ),
-              ),
-              ..._buildDailyTableRows(),
-            ],
-          ),
-        )
+                ..._buildDailyTableRows(),
+              ],
+            ),
+          )
+        else
+          _buildAsetList(),
       ],
     );
   }
 
+  Widget _buildAsetList() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 15.0),
+      child: Column(
+        children: _wallets.map((w) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.pink.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(w.icon, color: Colors.pink),
+              ),
+              title: Text(w.nama, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text(w.jenis, style: const TextStyle(fontSize: 12)),
+              trailing: Text(
+                "Rp${NumberFormat.decimalPattern('id').format(w.saldo)}",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+
+  Widget _buildAnalysisCard(Map<String, int> grouped, int total, bool isExpense) {
+    if (grouped.isEmpty) return const SizedBox.shrink();
+
+    String highestCategory = "";
+    int highestValue = 0;
+    grouped.forEach((key, value) {
+      if (value > highestValue) {
+        highestValue = value;
+        highestCategory = key;
+      }
+    });
+
+    double percent = (highestValue / total) * 100;
+
+    String message = "";
+    if (isExpense) {
+      message = "Pengeluaran terbesar Anda adalah pada kategori $highestCategory sebesar Rp${NumberFormat.decimalPattern('id').format(highestValue)} (${percent.toStringAsFixed(1)}% dari total pengeluaran).";
+    } else {
+      message = "Pemasukan terbesar Anda adalah dari kategori $highestCategory sebesar Rp${NumberFormat.decimalPattern('id').format(highestValue)} (${percent.toStringAsFixed(1)}% dari total pemasukan).";
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.blue.shade100)
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lightbulb_outline, color: Colors.blue, size: 30),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Insight Bulan Ini", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontSize: 14)),
+                const SizedBox(height: 5),
+                Text(message, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrendAnalysisCard() {
+    int totalIn = 0;
+    int totalOut = 0;
+    for (var t in _transactions) {
+      if (t.jenis == "masuk") {
+        totalIn += t.jumlah;
+      } else {
+        totalOut += t.jumlah;
+      }
+    }
+
+    String message = "";
+    if (totalIn > totalOut) {
+      message = "Bulan ini Anda berhasil menghemat sebesar Rp${NumberFormat.decimalPattern('id').format(totalIn - totalOut)}! Pertahankan keuangan sehat Anda.";
+    } else if (totalOut > totalIn) {
+      message = "Peringatan: Pengeluaran Anda lebih besar dari pemasukan (Defisit Rp${NumberFormat.decimalPattern('id').format(totalOut - totalIn)}). Coba evaluasi pengeluaran Anda.";
+    } else if (totalIn == 0 && totalOut == 0) {
+      return const SizedBox.shrink();
+    } else {
+      message = "Pemasukan dan pengeluaran Anda seimbang.";
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: totalOut > totalIn ? Colors.red.shade50 : Colors.green.shade50,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: totalOut > totalIn ? Colors.red.shade100 : Colors.green.shade100)
+      ),
+      child: Row(
+        children: [
+          Icon(totalOut > totalIn ? Icons.warning_amber_rounded : Icons.insights, color: totalOut > totalIn ? Colors.red : Colors.green, size: 30),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Analisis Keuangan", style: TextStyle(fontWeight: FontWeight.bold, color: totalOut > totalIn ? Colors.red : Colors.green, fontSize: 14)),
+                const SizedBox(height: 5),
+                Text(message, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
 
   Widget _buildLegendDot(Color color, String label) {
     return Row(
@@ -361,11 +513,14 @@ class _ReportPageState extends State<ReportPage> {
     }).toList();
   }
 
-  Widget _buildSmallTag(String label, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
-      decoration: BoxDecoration(color: isActive ? Colors.white : Colors.white.withAlpha(50), borderRadius: BorderRadius.circular(15)),
-      child: Text(label, style: TextStyle(color: isActive ? Colors.pink : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+  Widget _buildSmallTag(String label, bool isActive, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+        decoration: BoxDecoration(color: isActive ? Colors.white : Colors.white.withAlpha(50), borderRadius: BorderRadius.circular(15)),
+        child: Text(label, style: TextStyle(color: isActive ? Colors.pink : Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+      ),
     );
   }
 

@@ -9,10 +9,10 @@ class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<HomePage> createState() => HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage> {
   DateTime selectedDate = DateTime.now();
   List<Transaksi> transaksiBulanIni = [];
   String viewMode = "Total"; // Pengeluaran, Penghasilan, Total
@@ -22,10 +22,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    loadData();
   }
 
-  Future<void> _loadData() async {
+  Future<void> loadData() async {
     final allTransaksi = await DatabaseHelper.instance.fetchTransaksi();
     final allWallets = await DatabaseHelper.instance.fetchWallets();
     setState(() {
@@ -39,14 +39,14 @@ class _HomePageState extends State<HomePage> {
   void _nextMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month + 1, 1);
-      _loadData();
+      loadData();
     });
   }
 
   void _prevMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month - 1, 1);
-      _loadData();
+      loadData();
     });
   }
 
@@ -95,7 +95,7 @@ class _HomePageState extends State<HomePage> {
                   AppData.activeBookId = b.id!;
                   AppData.activeBookName = b.nama;
                 });
-                _loadData();
+                loadData();
                 Navigator.pop(context);
               },
             )),
@@ -131,7 +131,7 @@ class _HomePageState extends State<HomePage> {
                 await DatabaseHelper.instance.saveWallets([
                   Wallet(nama: "Utama", saldo: 0, jenis: "Akun Virtual", icon: Icons.account_balance_wallet)
                 ]);
-                _loadData();
+                loadData();
                 Navigator.pop(context);
               }
             },
@@ -480,7 +480,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                 ),
                               );
-                              if (result == true) _loadData();
+                              if (result == true) loadData();
                             },
                           ),
                           ListTile(
@@ -499,7 +499,7 @@ class _HomePageState extends State<HomePage> {
                                       onPressed: () async {
                                         Navigator.pop(context);
                                         await DatabaseHelper.instance.deleteTransaksi(t);
-                                        _loadData();
+                                        loadData();
                                       },
                                       child: const Text("Hapus", style: TextStyle(color: Colors.red)),
                                     ),
