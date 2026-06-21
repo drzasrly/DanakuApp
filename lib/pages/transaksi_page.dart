@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/database_helper.dart';
 import '../services/export_service.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/app_data.dart';
 import '../widgets/transaksi_item.dart';
 import 'add_transaksi_page.dart';
@@ -69,13 +70,7 @@ class _TransaksiPageState extends State<TransaksiPage> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Berhasil ekspor ke: $filePath"),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        await Share.shareXFiles([XFile(filePath)], text: "Laporan Keuangan Danaku (CSV)");
       }
     } catch (e) {
       if (mounted) {

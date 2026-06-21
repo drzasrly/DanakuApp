@@ -1,10 +1,14 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Untuk salin path laporan
 import 'package:intl/intl.dart';
 import '../data/database_helper.dart';
 import '../data/app_data.dart';
 import '../services/sync_service.dart';
+import '../services/notification_service.dart';
 import '../services/export_service.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/exchange_service.dart';
 import 'manage_category_page.dart';
 import 'manage_wallet_page.dart';
@@ -497,6 +501,26 @@ class _SettingPageState extends State<SettingPage> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 40,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.indigo,
+                  side: const BorderSide(color: Colors.indigo),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                label: const Text("Kirim Notifikasi Uji Coba", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                onPressed: () async {
+                  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+                    await NotificationService.instance.requestPermissions();
+                    await NotificationService.instance.showInstantNotification();
+                  }
+                },
+              ),
+            )
           ],
         ),
         actions: [
@@ -524,6 +548,12 @@ class _SettingPageState extends State<SettingPage> {
                 final formatted = "${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}";
                 await DatabaseHelper.instance.saveSetting('reminder_time', formatted);
                 _loadCustomSettings();
+                
+                if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+                  await NotificationService.instance.requestPermissions();
+                  await NotificationService.instance.scheduleDailyNotification(picked.hour, picked.minute);
+                }
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -629,7 +659,9 @@ class _SettingPageState extends State<SettingPage> {
             children: [
               const CircularProgressIndicator(color: Colors.green),
               const SizedBox(width: 20),
-              Text("Mengekspor transaksi ke $formatName..."),
+              Expanded(
+                child: Text("Mengekspor transaksi ke $formatName..."),
+              ),
             ],
           ),
         ),
@@ -665,23 +697,22 @@ class _SettingPageState extends State<SettingPage> {
             children: [
               Text("Data transaksi sukses diekspor ke format $formatName.", style: const TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                width: double.infinity,
-                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
-                child: Text(path, style: const TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.black54)),
-              ),
+              const Text("Anda dapat membagikan berkas laporan ini atau menyimpannya langsung ke File Manager ponsel Anda.", style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: path));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Path disalin ke clipboard!"), behavior: SnackBarBehavior.floating)
-                );
+              onPressed: () async {
+                await Share.shareXFiles([XFile(path)], text: "Laporan Keuangan Danaku ($formatName)");
               },
-              child: const Text("Salin Path", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.share, size: 18, color: Colors.blue),
+                  SizedBox(width: 6),
+                  Text("Bagikan Berkas", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -1274,6 +1305,7 @@ class _LoginBottomSheetState extends State<_LoginBottomSheet> {
   
   bool _isLoginMode = true;
   bool _processing = false;
+  bool _obscurePassword = true;
   String _errorMsg = "";
 
   @override
@@ -1403,9 +1435,20 @@ class _LoginBottomSheetState extends State<_LoginBottomSheet> {
               // Password Input Field
               TextFormField(
                 controller: _passwordController,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                   labelText: "Kata Sandi",
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -16,7 +16,7 @@ class _ReportPageState extends State<ReportPage> {
   int _viewMode = 0; // 0: Pengeluaran, 1: Penghasilan, 2: Kategori, 3: Akun, 4: Tren/Aset
   bool _isTrendMode = true; // true: Tren, false: Aset
   final String _groupBy = "Kategori"; // "Kategori" or "Akun"
-  final DateTime _selectedMonth = DateTime.now();
+  DateTime _selectedMonth = DateTime.now();
   List<Transaksi> _transactions = [];
   List<Wallet> _wallets = [];
 
@@ -35,6 +35,96 @@ class _ReportPageState extends State<ReportPage> {
     });
   }
 
+  void _prevMonth() {
+    setState(() {
+      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+      _loadData();
+    });
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+      _loadData();
+    });
+  }
+
+  void _showMonthPicker() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        int tempYear = _selectedMonth.year;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text("Pilih Bulan & Tahun", style: TextStyle(fontWeight: FontWeight.bold)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: () {
+                          setDialogState(() {
+                            tempYear--;
+                          });
+                        },
+                      ),
+                      Text("$tempYear", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: () {
+                          setDialogState(() {
+                            tempYear++;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(12, (index) {
+                      final monthNum = index + 1;
+                      final isSelected = _selectedMonth.month == monthNum && _selectedMonth.year == tempYear;
+                      final monthName = [
+                        "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
+                        "Jul", "Agt", "Sep", "Okt", "Nov", "Des"
+                      ][index];
+                      return ChoiceChip(
+                        label: Text(monthName),
+                        selected: isSelected,
+                        selectedColor: const Color(0xFFFF528F),
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _selectedMonth = DateTime(tempYear, monthNum);
+                              _loadData();
+                            });
+                            Navigator.pop(context);
+                          }
+                        },
+                      );
+                    }),
+                  )
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
@@ -51,10 +141,32 @@ class _ReportPageState extends State<ReportPage> {
           children: [
             const Text("Analisis", style: TextStyle(color: Colors.white, fontSize: 18)),
             const SizedBox(width: 10),
-            const Icon(Icons.chevron_left, color: Colors.white, size: 20),
-            Text(DateFormat('M/yyyy').format(_selectedMonth), style: const TextStyle(color: Colors.white, fontSize: 16)),
-            const Icon(Icons.arrow_drop_down, color: Colors.white),
-            const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+            GestureDetector(
+              onTap: _prevMonth,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Icon(Icons.chevron_left, color: Colors.white, size: 20),
+              ),
+            ),
+            GestureDetector(
+              onTap: _showMonthPicker,
+              behavior: HitTestBehavior.opaque,
+              child: Row(
+                children: [
+                  Text(DateFormat('M/yyyy').format(_selectedMonth), style: const TextStyle(color: Colors.white, fontSize: 16)),
+                  const Icon(Icons.arrow_drop_down, color: Colors.white),
+                ],
+              ),
+            ),
+            GestureDetector(
+              onTap: _nextMonth,
+              behavior: HitTestBehavior.opaque,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                child: Icon(Icons.chevron_right, color: Colors.white, size: 20),
+              ),
+            ),
           ],
         ),
       ),

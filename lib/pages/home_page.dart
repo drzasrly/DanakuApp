@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../data/app_data.dart';
 import '../data/database_helper.dart';
 import 'transaction_input_page.dart';
@@ -14,6 +15,7 @@ class HomePage extends StatefulWidget {
 
 class HomePageState extends State<HomePage> {
   DateTime selectedDate = DateTime.now();
+  DateTime selectedDay = DateTime.now();
   List<Transaksi> transaksiBulanIni = [];
   String viewMode = "Total"; // Pengeluaran, Penghasilan, Total
   bool isCalendarView = false;
@@ -22,6 +24,9 @@ class HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    initializeDateFormatting('id', null).then((_) {
+      if (mounted) setState(() {});
+    });
     loadData();
   }
 
@@ -39,6 +44,7 @@ class HomePageState extends State<HomePage> {
   void _nextMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month + 1, 1);
+      selectedDay = DateTime(selectedDate.year, selectedDate.month, 1);
       loadData();
     });
   }
@@ -46,6 +52,7 @@ class HomePageState extends State<HomePage> {
   void _prevMonth() {
     setState(() {
       selectedDate = DateTime(selectedDate.year, selectedDate.month - 1, 1);
+      selectedDay = DateTime(selectedDate.year, selectedDate.month, 1);
       loadData();
     });
   }
@@ -456,63 +463,7 @@ class HomePageState extends State<HomePage> {
                 final catData = [...AppData.pengeluaranCategories, ...AppData.pemasukanCategories]
                     .firstWhere((c) => c.nama == t.kategori, orElse: () => TransactionCategory(nama: t.kategori, icon: Icons.category));
                 return ListTile(
-                  onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-                      builder: (context) => Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 10),
-                          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
-                          const SizedBox(height: 20),
-                          ListTile(
-                            leading: const Icon(Icons.edit, color: Colors.blue),
-                            title: const Text("Edit Transaksi"),
-                            onTap: () async {
-                              Navigator.pop(context);
-                              final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => TransactionInputPage(
-                                    initialJenis: t.jenis.toLowerCase() == 'masuk' ? 'masuk' : 'keluar',
-                                    initialTransaksi: t,
-                                  ),
-                                ),
-                              );
-                              if (result == true) loadData();
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.delete, color: Colors.red),
-                            title: const Text("Hapus Transaksi"),
-                            onTap: () {
-                              Navigator.pop(context);
-                              showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text("Hapus"),
-                                  content: const Text("Yakin ingin menghapus transaksi ini?"),
-                                  actions: [
-                                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
-                                    TextButton(
-                                      onPressed: () async {
-                                        Navigator.pop(context);
-                                        await DatabaseHelper.instance.deleteTransaksi(t);
-                                        loadData();
-                                      },
-                                      child: const Text("Hapus", style: TextStyle(color: Colors.red)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    );
-                  },
+                  onTap: () => _showTransactionOptions(t),
                   leading: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
@@ -620,53 +571,82 @@ class HomePageState extends State<HomePage> {
     for (int day = 1; day <= daysInMonth; day++) {
       final date = DateTime(selectedDate.year, selectedDate.month, day);
       final isToday = date.day == DateTime.now().day && date.month == DateTime.now().month && date.year == DateTime.now().year;
+      final isSelected = selectedDay.day == day && selectedDay.month == selectedDate.month && selectedDay.year == selectedDate.year;
+
       int income = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "masuk" || t.jenis == "pemasukan")).fold(0, (sum, t) => sum + t.jumlah);
       int expense = transaksiBulanIni.where((t) => t.tanggal.day == day && (t.jenis == "keluar" || t.jenis == "pengeluaran")).fold(0, (sum, t) => sum + t.jumlah);
       dayWidgets.add(
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return Column(
-              children: [
-                Container(
-                  width: 28, height: 28,
-                  decoration: BoxDecoration(color: isToday ? Colors.pink : Colors.transparent, shape: BoxShape.circle),
-                  child: Center(child: Text("$day", style: TextStyle(color: isToday ? Colors.white : (date.weekday == 7 || date.weekday == 6 ? Colors.red.shade400 : Colors.black87), fontWeight: isToday ? FontWeight.bold : FontWeight.normal, fontSize: 12))),
-                ),
-                const SizedBox(height: 2),
-                if (viewMode == "Total") ...[
-                  if (income - expense != 0)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(color: (income - expense) > 0 ? Colors.green.shade400 : Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
-                        child: Text("${(income - expense) > 0 ? '' : '-'}${( (income - expense).abs() / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)),
-                      ),
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              selectedDay = DateTime(selectedDate.year, selectedDate.month, day);
+            });
+          },
+          behavior: HitTestBehavior.opaque,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Column(
+                children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? Colors.pink 
+                          : (isToday ? Colors.pink.shade50 : Colors.transparent), 
+                      shape: BoxShape.circle,
+                      border: isToday && !isSelected 
+                          ? Border.all(color: Colors.pink, width: 1.5) 
+                          : null,
                     ),
-                ] else if (viewMode == "Penghasilan") ...[
-                  if (income > 0)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(4)),
-                        child: Text("${(income / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
-                      ),
+                    child: Center(
+                      child: Text(
+                        "$day", 
+                        style: TextStyle(
+                          color: isSelected 
+                              ? Colors.white 
+                              : (isToday ? Colors.pink : (date.weekday == 7 || date.weekday == 6 ? Colors.red.shade400 : Colors.black87)), 
+                          fontWeight: (isSelected || isToday) ? FontWeight.bold : FontWeight.normal, 
+                          fontSize: 12
+                        )
+                      )
                     ),
-                ] else if (viewMode == "Pengeluaran") ...[
-                  if (expense > 0)
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
-                        child: Text("-${(expense / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
+                  ),
+                  const SizedBox(height: 2),
+                  if (viewMode == "Total") ...[
+                    if (income - expense != 0)
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(color: (income - expense) > 0 ? Colors.green.shade400 : Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                          child: Text("${(income - expense) > 0 ? '' : '-'}${((income - expense).abs() / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.bold)),
+                        ),
                       ),
-                    ),
+                  ] else if (viewMode == "Penghasilan") ...[
+                    if (income > 0)
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(4)),
+                          child: Text("${(income / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
+                        ),
+                      ),
+                  ] else if (viewMode == "Pengeluaran") ...[
+                    if (expense > 0)
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(4)),
+                          child: Text("-${(expense / 1000).toStringAsFixed(0)}k", style: const TextStyle(color: Colors.white, fontSize: 7)),
+                        ),
+                      ),
+                  ],
                 ],
-              ],
-            );
-          }
+              );
+            }
+          ),
         ),
       );
     }
@@ -681,29 +661,164 @@ class HomePageState extends State<HomePage> {
 
 
   Widget _buildBottomTotals() {
-    int totalIncome = transaksiBulanIni.where((t) => t.jenis == "masuk" || t.jenis == "pemasukan").fold(0, (sum, t) => sum + t.jumlah);
-    int totalExpense = transaksiBulanIni.where((t) => t.jenis == "keluar" || t.jenis == "pengeluaran").fold(0, (sum, t) => sum + t.jumlah);
+    final dayTransactions = transaksiBulanIni.where((t) => t.tanggal.day == selectedDay.day).toList();
+    
+    int totalIncome = dayTransactions.where((t) => t.jenis == "masuk" || t.jenis == "pemasukan").fold(0, (sum, t) => sum + t.jumlah);
+    int totalExpense = dayTransactions.where((t) => t.jenis == "keluar" || t.jenis == "pengeluaran").fold(0, (sum, t) => sum + t.jumlah);
+    
+    final dateStr = DateFormat('EEEE, dd MMMM yyyy', 'id').format(selectedDay);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}", "Total"),
-          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome)}", "Penghasilan"),
-          _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalExpense)}", "Pengeluaran"),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr, 
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87, fontSize: 14)
+              ),
+              const Icon(Icons.calendar_today_rounded, size: 16, color: Colors.grey),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome)}", "Masuk", Colors.green),
+              _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalExpense)}", "Keluar", Colors.red),
+              _bottomTotalItem("Rp${NumberFormat.decimalPattern('id').format(totalIncome - totalExpense)}", "Selisih", Colors.pink),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          if (dayTransactions.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 30),
+                child: Column(
+                  children: [
+                    Icon(Icons.money_off_rounded, color: Colors.grey.shade300, size: 40),
+                    const SizedBox(height: 8),
+                    const Text("Tidak ada transaksi pada tanggal ini", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: dayTransactions.length,
+              itemBuilder: (context, index) {
+                final t = dayTransactions[index];
+                final catData = [...AppData.pengeluaranCategories, ...AppData.pemasukanCategories]
+                    .firstWhere((c) => c.nama == t.kategori, orElse: () => TransactionCategory(nama: t.kategori, icon: Icons.category));
+                return Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                  child: ListTile(
+                    onTap: () {
+                      _showTransactionOptions(t);
+                    },
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: catData.imagePath != null ? Colors.pink.withAlpha(25) : _getCategoryColor(t.kategori).withAlpha(50),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: catData.imagePath != null 
+                          ? Image.asset(catData.imagePath!, width: 24, height: 24)
+                          : Icon(_getCategoryIcon(t.kategori), color: _getCategoryColor(t.kategori)),
+                    ),
+                    title: Text(t.keterangan, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(t.walletNama, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                    trailing: Text(
+                      "${(t.jenis.toLowerCase() == 'masuk' || t.jenis.toLowerCase() == 'pemasukan') ? '+' : '-'}Rp${NumberFormat.decimalPattern('id').format(t.jumlah)}",
+                      style: TextStyle(
+                        color: (t.jenis.toLowerCase() == "masuk" || t.jenis.toLowerCase() == "pemasukan") ? Colors.green : Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _bottomTotalItem(String amount, String label) {
+  Widget _bottomTotalItem(String amount, String label, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(amount, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.pink)),
+        Text(amount, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
       ],
+    );
+  }
+
+  void _showTransactionOptions(Transaksi t) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          ListTile(
+            leading: const Icon(Icons.edit, color: Colors.blue),
+            title: const Text("Edit Transaksi"),
+            onTap: () async {
+              Navigator.pop(context);
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TransactionInputPage(
+                    initialJenis: t.jenis.toLowerCase() == 'masuk' ? 'masuk' : 'keluar',
+                    initialTransaksi: t,
+                  ),
+                ),
+              );
+              if (result == true) loadData();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete, color: Colors.red),
+            title: const Text("Hapus Transaksi"),
+            onTap: () {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text("Hapus"),
+                  content: const Text("Yakin ingin menghapus transaksi ini?"),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await DatabaseHelper.instance.deleteTransaksi(t);
+                        loadData();
+                      },
+                      child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
     );
   }
 }

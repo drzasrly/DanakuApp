@@ -149,6 +149,104 @@ class ExportService {
     return pathOfTheFile;
   }
 
+  /// Banner Header
+  static pw.Widget _buildPdfHeaderBanner() {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(12),
+      decoration: const pw.BoxDecoration(
+        color: PdfColors.teal800,
+        borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                "DANAKUAPP - LAPORAN KEUANGAN TRANSAKSI",
+                style: pw.TextStyle(
+                  color: PdfColors.white,
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 2),
+              pw.Text(
+                "Catatan Lengkap Arus Kas Masuk dan Keluar Pengguna",
+                style: const pw.TextStyle(
+                  color: PdfColors.teal100,
+                  fontSize: 8,
+                ),
+              ),
+            ],
+          ),
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Text(
+                "WAKTU CETAK",
+                style: pw.TextStyle(color: PdfColors.teal100, fontSize: 6, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 1),
+              pw.Text(
+                "${DateFormat('dd MMMM yyyy, HH:mm', 'id').format(DateTime.now())} WIB",
+                style: pw.TextStyle(color: PdfColors.white, fontSize: 8, fontWeight: pw.FontWeight.bold),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// KPI Block
+  static pw.Widget _buildPdfKpis(int totalCount, int totalPemasukan, int totalPengeluaran, int saldoBersih) {
+    return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+      children: [
+        _buildPdfKpiCard("Total Transaksi", "$totalCount Data", PdfColors.blue800),
+        _buildPdfKpiCard("Total Pemasukan", "Rp ${NumberFormat.decimalPattern('id').format(totalPemasukan)}", PdfColors.green800),
+        _buildPdfKpiCard("Total Pengeluaran", "Rp ${NumberFormat.decimalPattern('id').format(totalPengeluaran)}", PdfColors.red800),
+        _buildPdfKpiCard("Saldo Bersih", "Rp ${NumberFormat.decimalPattern('id').format(saldoBersih)}", saldoBersih >= 0 ? PdfColors.teal800 : PdfColors.orange900),
+      ],
+    );
+  }
+
+  /// Table generator
+  static pw.Widget _buildPdfTable(List<Transaksi> chunk, int startIndex) {
+    return pw.TableHelper.fromTextArray(
+      headers: ["No", "Keterangan", "Jumlah", "Jenis", "Tanggal", "Dompet", "Kategori"],
+      data: List<List<String>>.generate(chunk.length, (index) {
+        final t = chunk[index];
+        final formattedJumlah = "Rp ${NumberFormat.decimalPattern('id').format(t.jumlah)}";
+        final formattedTanggal = DateFormat('dd-MM-yyyy').format(t.tanggal);
+
+        return [
+          (startIndex + index + 1).toString(),
+          t.keterangan,
+          formattedJumlah,
+          t.jenis.toUpperCase() == "MASUK" || t.jenis.toUpperCase() == "PEMASUKAN" ? "PEMASUKAN" : "PENGELUARAN",
+          formattedTanggal,
+          t.walletNama,
+          t.kategori,
+        ];
+      }),
+      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+      headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.teal800),
+      cellStyle: const pw.TextStyle(fontSize: 7.5),
+      oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
+      cellAlignment: pw.Alignment.centerLeft,
+      cellAlignments: {
+        0: pw.Alignment.center,     // No (Center)
+        2: pw.Alignment.centerRight, // Jumlah (Right - Standard Keuangan)
+        3: pw.Alignment.center,     // Jenis (Center)
+        4: pw.Alignment.center,     // Tanggal (Center)
+      },
+    );
+  }
+
   /// 3. Ekspor Data Transaksi ke PDF (.pdf) Premium dengan Banner & KPI Card
   static Future<String> exportTransaksiToPDF() async {
     await initializeDateFormatting('id', null);
@@ -168,110 +266,105 @@ class ExportService {
 
     final pdf = pw.Document();
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        orientation: pw.PageOrientation.landscape,
-        margin: const pw.EdgeInsets.all(24),
-        build: (pw.Context context) {
-          return [
-            // 1. BANNER HEADER PREMIUM
-            pw.Container(
-              padding: const pw.EdgeInsets.all(16),
-              decoration: const pw.BoxDecoration(
-                color: PdfColors.teal800,
-                borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
-              ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(
-                        "DANAKUAPP - LAPORAN KEUANGAN TRANSAKSI",
-                        style: pw.TextStyle(
-                          color: PdfColors.white,
-                          fontSize: 16,
-                          fontWeight: pw.FontWeight.bold,
-                        ),
-                      ),
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        "Catatan Lengkap Arus Kas Masuk dan Keluar Pengguna",
-                        style: pw.TextStyle(
-                          color: PdfColors.teal100,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text(
-                        "WAKTU CETAK",
-                        style: pw.TextStyle(color: PdfColors.teal100, fontSize: 7, fontWeight: pw.FontWeight.bold),
-                      ),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        "${DateFormat('dd MMMM yyyy, HH:mm', 'id').format(DateTime.now())} WIB",
-                        style: pw.TextStyle(color: PdfColors.white, fontSize: 9, fontWeight: pw.FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 16),
+    // Limit chunking
+    final int firstPageLimit = 15;
+    final int subsequentPageLimit = 25;
 
-            // 2. KARTU RINGKASAN FINANSIAL (KPI BLOCK)
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    final int totalCount = listTransaksi.length;
+
+    if (totalCount == 0) {
+      // Empty fallback
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4.copyWith(
+            width: PdfPageFormat.a4.height,
+            height: PdfPageFormat.a4.width,
+          ),
+          margin: const pw.EdgeInsets.all(24),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                _buildPdfKpiCard("Total Transaksi", "${listTransaksi.length} Data", PdfColors.blue800),
-                _buildPdfKpiCard("Total Pemasukan", "Rp ${NumberFormat.decimalPattern('id').format(totalPemasukan)}", PdfColors.green800),
-                _buildPdfKpiCard("Total Pengeluaran", "Rp ${NumberFormat.decimalPattern('id').format(totalPengeluaran)}", PdfColors.red800),
-                _buildPdfKpiCard("Saldo Bersih", "Rp ${NumberFormat.decimalPattern('id').format(saldoBersih)}", saldoBersih >= 0 ? PdfColors.teal800 : PdfColors.orange900),
+                _buildPdfHeaderBanner(),
+                pw.SizedBox(height: 16),
+                _buildPdfKpis(0, 0, 0, 0),
+                pw.SizedBox(height: 32),
+                pw.Center(
+                  child: pw.Text("Tidak ada data transaksi.", style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: PdfColors.grey600)),
+                ),
               ],
-            ),
-            pw.SizedBox(height: 20),
+            );
+          },
+        ),
+      );
+    } else {
+      // 1. Add first page
+      final int firstLimit = totalCount < firstPageLimit ? totalCount : firstPageLimit;
+      final firstChunk = listTransaksi.sublist(0, firstLimit);
+      final int totalPages = totalCount <= firstPageLimit ? 1 : (((totalCount - firstPageLimit) / subsequentPageLimit).ceil() + 1);
 
-            // 3. TABEL DATA TRANSAKSI SANGAT RAPI & ELEGAN
-            pw.TableHelper.fromTextArray(
-              headers: ["No", "Keterangan", "Jumlah", "Jenis", "Tanggal", "Dompet", "Kategori"],
-              data: List<List<String>>.generate(listTransaksi.length, (index) {
-                final t = listTransaksi[index];
-                final formattedJumlah = "Rp ${NumberFormat.decimalPattern('id').format(t.jumlah)}";
-                final formattedTanggal = DateFormat('dd-MM-yyyy').format(t.tanggal);
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4.copyWith(
+            width: PdfPageFormat.a4.height,
+            height: PdfPageFormat.a4.width,
+          ),
+          margin: const pw.EdgeInsets.all(24),
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                _buildPdfHeaderBanner(),
+                pw.SizedBox(height: 16),
+                _buildPdfKpis(totalCount, totalPemasukan, totalPengeluaran, saldoBersih),
+                pw.SizedBox(height: 16),
+                _buildPdfTable(firstChunk, 0),
+                pw.Spacer(),
+                pw.Align(
+                  alignment: pw.Alignment.centerRight,
+                  child: pw.Text("Halaman 1 dari $totalPages", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
+                )
+              ],
+            );
+          },
+        ),
+      );
 
-                return [
-                  (index + 1).toString(),
-                  t.keterangan,
-                  formattedJumlah,
-                  t.jenis.toUpperCase() == "MASUK" || t.jenis.toUpperCase() == "PEMASUKAN" ? "PEMASUKAN" : "PENGELUARAN",
-                  formattedTanggal,
-                  t.walletNama,
-                  t.kategori,
-                ];
-              }),
-              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.teal800),
-              cellStyle: const pw.TextStyle(fontSize: 8.5),
-              oddRowDecoration: const pw.BoxDecoration(color: PdfColors.grey100),
-              cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {
-                0: pw.Alignment.center,     // No (Center)
-                2: pw.Alignment.centerRight, // Jumlah (Right - Standard Keuangan)
-                3: pw.Alignment.center,     // Jenis (Center)
-                4: pw.Alignment.center,     // Tanggal (Center)
-              },
+      // 2. Add subsequent pages if needed
+      int pageNum = 2;
+      for (int i = firstPageLimit; i < totalCount; i += subsequentPageLimit) {
+        final int endLimit = (i + subsequentPageLimit) < totalCount ? (i + subsequentPageLimit) : totalCount;
+        final chunk = listTransaksi.sublist(i, endLimit);
+        final currentPageNum = pageNum;
+        final startIndex = i;
+
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4.copyWith(
+              width: PdfPageFormat.a4.height,
+              height: PdfPageFormat.a4.width,
             ),
-          ];
-        },
-      ),
-    );
+            margin: const pw.EdgeInsets.all(24),
+            build: (pw.Context context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text("DANAKUAPP - LAPORAN TRANSAKSI (LANJUTAN)", style: pw.TextStyle(color: PdfColors.teal800, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 8),
+                  _buildPdfTable(chunk, startIndex),
+                  pw.Spacer(),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text("Halaman $currentPageNum dari $totalPages", style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
+                  )
+                ],
+              );
+            },
+          ),
+        );
+        pageNum++;
+      }
+    }
 
     final bytes = await pdf.save();
     final directory = await getApplicationDocumentsDirectory();

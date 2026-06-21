@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http; // Ditambahkan sebagai dependensi jika ingin menghubungkan ke Laravel asli
+import 'package:http/http.dart'
+    as http; // Ditambahkan sebagai dependensi jika ingin menghubungkan ke Laravel asli
 import '../data/database_helper.dart';
 import '../data/app_data.dart';
 
@@ -12,7 +13,7 @@ class SyncService {
   // false = Menggunakan penyimpanan lokal terisolasi SQLite (Simulasi Awan) - 100% jalan secara offline
   // true = Menghubungkan secara nyata ke server REST API Laravel Anda di internet
   final bool useRealServer = true;
-  final String laravelBaseUrl = "https://danakularavel-production.up.railway.app/api";
+  final String laravelBaseUrl = "https://ditzy-common-small.ngrok-free.dev/api";
 
   /// =========================================================================
   /// 🔑 BAGIAN 1: OTENTIKASI & MANAJEMEN AKUN
@@ -48,10 +49,12 @@ class SyncService {
       // 💾 SIMULASI AWAN LOKAL:
       // Simulasi delay jaringan agar terasa realistis
       await Future.delayed(const Duration(milliseconds: 1000));
-      
+
       // Ambil password terdaftar di database internal
-      final savedPassword = await DatabaseHelper.instance.getSetting('user_pwd_$email');
-      
+      final savedPassword = await DatabaseHelper.instance.getSetting(
+        'user_pwd_$email',
+      );
+
       if (savedPassword != null && savedPassword == password) {
         // Simpan status login
         await DatabaseHelper.instance.saveSetting('logged_in_user', email);
@@ -85,7 +88,7 @@ class SyncService {
     } else {
       // 💾 SIMULASI AWAN LOKAL:
       await Future.delayed(const Duration(milliseconds: 1000));
-      
+
       // Simpan data pendaftaran secara lokal di tabel settings
       await DatabaseHelper.instance.saveSetting('user_pwd_$email', password);
       await DatabaseHelper.instance.saveSetting('logged_in_user', email);
@@ -99,7 +102,6 @@ class SyncService {
     await DatabaseHelper.instance.deleteSetting('auth_token');
   }
 
-
   /// =========================================================================
   /// ☁️ BAGIAN 2: PENCADANGAN & PEMULIHAN DATA
   /// =========================================================================
@@ -111,7 +113,7 @@ class SyncService {
       try {
         final token = await DatabaseHelper.instance.getSetting('auth_token');
         final payload = await _buildBackupPayload();
-        
+
         final response = await http.post(
           Uri.parse('$laravelBaseUrl/backup'),
           headers: {
@@ -120,7 +122,7 @@ class SyncService {
           },
           body: jsonEncode(payload),
         );
-        
+
         if (response.statusCode != 200) {
           throw Exception("Gagal mengunggah data ke Laravel Server");
         }
@@ -132,12 +134,15 @@ class SyncService {
       // 💾 SIMULASI AWAN LOKAL:
       // Animasi delay progress simulasi
       await Future.delayed(const Duration(milliseconds: 2000));
-      
+
       final payload = await _buildBackupPayload();
       final jsonString = jsonEncode(payload);
 
       // Simpan backup JSON terikat dengan email di database settings internal
-      await DatabaseHelper.instance.saveSetting('user_backup_$email', jsonString);
+      await DatabaseHelper.instance.saveSetting(
+        'user_backup_$email',
+        jsonString,
+      );
     }
   }
 
@@ -151,28 +156,36 @@ class SyncService {
       try {
         final token = await DatabaseHelper.instance.getSetting('auth_token');
         final payload = await _buildBackupPayload();
-        
-        http.post(
-          Uri.parse('$laravelBaseUrl/backup'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-          body: jsonEncode(payload),
-        ).then((response) {
-          if (response.statusCode == 200) {
-            debugPrint("Auto-backup senyap berhasil dikirim ke Server Laravel");
-          }
-        }).catchError((e) {
-          debugPrint("Error Auto-backup Real Server: $e");
-        });
+
+        http
+            .post(
+              Uri.parse('$laravelBaseUrl/backup'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode(payload),
+            )
+            .then((response) {
+              if (response.statusCode == 200) {
+                debugPrint(
+                  "Auto-backup senyap berhasil dikirim ke Server Laravel",
+                );
+              }
+            })
+            .catchError((e) {
+              debugPrint("Error Auto-backup Real Server: $e");
+            });
       } catch (e) {
         debugPrint("Error Auto-backup: $e");
       }
     } else {
       final payload = await _buildBackupPayload();
       final jsonString = jsonEncode(payload);
-      await DatabaseHelper.instance.saveSetting('user_backup_$email', jsonString);
+      await DatabaseHelper.instance.saveSetting(
+        'user_backup_$email',
+        jsonString,
+      );
       debugPrint("Auto-backup senyap berhasil disinkronkan untuk: $email");
     }
   }
@@ -189,10 +202,12 @@ class SyncService {
           Uri.parse('$laravelBaseUrl/restore'),
           headers: {'Authorization': 'Bearer $token'},
         );
-        
+
         if (response.statusCode == 200) {
           final responseData = jsonDecode(response.body);
-          jsonString = jsonEncode(responseData['data']); // Sesuaikan dengan struktur response Laravel Anda
+          jsonString = jsonEncode(
+            responseData['data'],
+          ); // Sesuaikan dengan struktur response Laravel Anda
         } else {
           return false;
         }
@@ -203,9 +218,11 @@ class SyncService {
     } else {
       // 💾 SIMULASI AWAN LOKAL:
       await Future.delayed(const Duration(milliseconds: 2000));
-      
+
       // Ambil data backup bertipe JSON string berdasarkan email
-      jsonString = await DatabaseHelper.instance.getSetting('user_backup_$email');
+      jsonString = await DatabaseHelper.instance.getSetting(
+        'user_backup_$email',
+      );
     }
 
     if (jsonString == null) {
@@ -246,7 +263,7 @@ class SyncService {
       // Sinkronkan memori aplikasi (AppData) dengan data SQLite yang baru direstore
       final freshWallets = await DatabaseHelper.instance.fetchWallets();
       AppData.wallets = freshWallets;
-      
+
       final freshTransaksi = await DatabaseHelper.instance.fetchTransaksi();
       AppData.transaksi = freshTransaksi;
 
