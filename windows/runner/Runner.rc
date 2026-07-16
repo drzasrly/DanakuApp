@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "app_petama" "\0"
+            VALUE "CompanyName", "com.danaku" "\0"
+            VALUE "FileDescription", "Danaku" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "app_petama" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "app_petama.exe" "\0"
-            VALUE "ProductName", "app_petama" "\0"
+            VALUE "InternalName", "Danaku" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.danaku. All rights reserved." "\0"
+            VALUE "OriginalFilename", "Danaku.exe" "\0"
+            VALUE "ProductName", "Danaku" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
